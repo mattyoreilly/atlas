@@ -83,104 +83,120 @@
 
     
     
-<p>Atlas hands your data to an LLM agent that explores it, proposes a
-modeling plan for your approval, then writes and runs R code to fit and
-evaluate candidate models — pausing in the console when a decision needs
-you. Chunks in this vignette are not evaluated at build time because
-they need an API key.</p>
-<p>Your data is never uploaded: the LLM sees a compact profile (column
-names, types, dimensions) and whatever output the agent prints. All code
-runs locally in your R session.</p>
+<p>Atlas automates the workmanlike part of modeling — explore, propose,
+fit, compare, refine, document — while keeping you in charge of every
+judgment call. An LLM agent does the work by writing and running R code
+in your session, narrating as it goes and pausing for your approval at
+the moments that matter.</p>
+<p>This vignette walks through one build end to end. Code chunks are not
+evaluated here because they need an API key.</p>
+<p>Two facts worth internalising before the first run:</p>
+<ul>
+<li>
+<strong>Your data never leaves your machine.</strong> The agent
+receives a compact profile — dimensions, column names and types — plus
+whatever output its own code prints. Model fitting is ordinary local
+R.</li>
+<li>
+<strong>Everything is recorded.</strong> Every code chunk the agent
+executes and every conversational turn is checkpointed to a run
+directory as it happens. The result of a build is not just models; it is
+a reproducible script.</li>
+</ul>
 <div class="section level2">
-<h2 id="setting-your-api-key">Setting your API key<a class="anchor" aria-label="anchor" href="#setting-your-api-key"></a>
+<h2 id="setup">Setup<a class="anchor" aria-label="anchor" href="#setup"></a>
 </h2>
-<p>Atlas talks to the LLM through ellmer, which reads the key from an
-environment variable — <code>ANTHROPIC_API_KEY</code> for the default
-provider. Without it you’ll see:</p>
-<pre><code>Error in `anthropic_key()`:
-! Can't find env var `ANTHROPIC_API_KEY`.</code></pre>
-<p>The recommended, persistent way is to put it in your
-<code>.Renviron</code>:</p>
-<div class="sourceCode" id="cb2"><pre class="downlit sourceCode r">
+<p>Atlas talks to the LLM through <a href="https://ellmer.tidyverse.org" class="external-link">ellmer</a> and defaults to
+Anthropic’s API, which reads a key from the
+<code>ANTHROPIC_API_KEY</code> environment variable. The tidy,
+persistent way to set it:</p>
+<div class="sourceCode" id="cb1"><pre class="downlit sourceCode r">
 <code class="sourceCode R"><span><span class="fu">usethis</span><span class="fu">::</span><span class="fu"><a href="https://usethis.r-lib.org/reference/edit.html" class="external-link">edit_r_environ</a></span><span class="op">(</span><span class="op">)</span></span></code></pre></div>
-<p>add this line (no quotes), save, then restart R:</p>
+<p>Add one line (no quotes), save, restart R:</p>
 <pre><code><span><span class="va">ANTHROPIC_API_KEY</span><span class="op">=</span><span class="va">sk</span><span class="op">-</span><span class="va">ant</span><span class="op">-</span><span class="va">...</span></span></code></pre>
-<p>For a one-off session you can set it inline instead (don’t save this
-in a script you share):</p>
-<div class="sourceCode" id="cb4"><pre class="downlit sourceCode r">
-<code class="sourceCode R"><span><span class="fu"><a href="https://rdrr.io/r/base/Sys.setenv.html" class="external-link">Sys.setenv</a></span><span class="op">(</span>ANTHROPIC_API_KEY <span class="op">=</span> <span class="st">"sk-ant-..."</span><span class="op">)</span></span></code></pre></div>
-<p>Other providers use their own variables,
-e.g. <code>OPENAI_API_KEY</code> for <code><a href="https://ellmer.tidyverse.org/reference/chat_openai.html" class="external-link">ellmer::chat_openai()</a></code>
-— see the <a href="https://ellmer.tidyverse.org/reference/index.html#chatbots" class="external-link">ellmer
-provider docs</a> for the full list. Any tool-capable provider
-works:</p>
-<div class="sourceCode" id="cb5"><pre class="downlit sourceCode r">
+<p>Every tool-capable ellmer provider is a drop-in replacement — pass
+one via <code>chat</code>:</p>
+<div class="sourceCode" id="cb3"><pre class="downlit sourceCode r">
 <code class="sourceCode R"><span><span class="va">res</span> <span class="op">&lt;-</span> <span class="fu"><a href="../reference/atlas.html">atlas</a></span><span class="op">(</span><span class="va">mtcars</span>, <span class="st">"mpg"</span>, chat <span class="op">=</span> <span class="fu">ellmer</span><span class="fu">::</span><span class="fu"><a href="https://ellmer.tidyverse.org/reference/chat_openai.html" class="external-link">chat_openai</a></span><span class="op">(</span>model <span class="op">=</span> <span class="st">"gpt-5"</span><span class="op">)</span><span class="op">)</span></span></code></pre></div>
 </div>
 <div class="section level2">
-<h2 id="one-call">One call<a class="anchor" aria-label="anchor" href="#one-call"></a>
+<h2 id="one-build-start-to-finish">One build, start to finish<a class="anchor" aria-label="anchor" href="#one-build-start-to-finish"></a>
 </h2>
-<div class="sourceCode" id="cb6"><pre class="downlit sourceCode r">
+<div class="sourceCode" id="cb4"><pre class="downlit sourceCode r">
 <code class="sourceCode R"><span><span class="kw"><a href="https://rdrr.io/r/base/library.html" class="external-link">library</a></span><span class="op">(</span><span class="va">Atlas</span><span class="op">)</span></span>
 <span></span>
-<span><span class="va">res</span> <span class="op">&lt;-</span> <span class="fu"><a href="../reference/atlas.html">atlas</a></span><span class="op">(</span><span class="va">mtcars</span>, outcome <span class="op">=</span> <span class="st">"mpg"</span>, n_models <span class="op">=</span> <span class="fl">1</span>,</span>
+<span><span class="va">res</span> <span class="op">&lt;-</span> <span class="fu"><a href="../reference/atlas.html">atlas</a></span><span class="op">(</span><span class="va">mtcars</span>, outcome <span class="op">=</span> <span class="st">"mpg"</span>, n_models <span class="op">=</span> <span class="fl">3</span>,</span>
 <span>             goal <span class="op">=</span> <span class="st">"prioritise interpretability"</span><span class="op">)</span></span></code></pre></div>
-<p>The agent streams what it is doing — narration, each code chunk under
-an <code>── R ──</code> rule with its output as <code>#&gt;</code> lines
-— and pauses in the console when it wants your approval of the plan or
-input on a decision.</p>
+<p>Here is the lifecycle that call runs, and where you come in:</p>
+<ol style="list-style-type: decimal">
+<li><p><strong>Explore.</strong> The agent profiles the data:
+dimensions, types, missingness, and the outcome’s distribution.
+Predictors that alone explain nearly all of the outcome are flagged as
+suspected target leakage (see <code><a href="../reference/atlas_leakage_screen.html">atlas_leakage_screen()</a></code>) and
+must be confirmed with you before the agent may use them.</p></li>
+<li><p><strong>Plan — and stop for you.</strong> The agent proposes
+candidate model families <em>chosen to match the outcome’s
+distribution</em> (binary outcome → binomial; counts → Poisson-family;
+skewed positive → Gamma/Tweedie or a log transform), a validation scheme
+with a fixed seed, and any monotone effects it believes the domain
+implies. It then asks for your approval in the console. This is a
+conversation, not a checkbox: answer <code>yes</code>, or redirect —
+“drop the tree model, and don’t use qsec” — and the plan is revised
+before anything is fitted.</p></li>
+<li><p><strong>Build.</strong> Up to <code>n_models</code> candidates
+are fitted and compared on held-out data, one narrated line per
+candidate.</p></li>
+<li><p><strong>Refine.</strong> The winner’s feature selection and
+engineering are iterated — one change per attempt, same validation
+scheme — until the stopping rules call convergence. The refined model
+joins the results as <code>&lt;winner&gt;_refined</code>, next to the
+original.</p></li>
+<li><p><strong>Verify.</strong> Machine-checked constraints (if you
+passed any) are tested against every final model; violations go back to
+the agent for repair. See <code><a href="../articles/constraints.html">vignette("constraints")</a></code>.</p></li>
+<li><p><strong>Document.</strong> With the <code>modelblueprint</code>
+package installed, the winning model gets a full validation workup —
+gain chart, calibration, grouped residuals, one-way plots, PDPs —
+written to the run directory as interactive HTML, alongside a portable
+model bundle.</p></li>
+</ol>
+</div>
+<div class="section level2">
+<h2 id="stopping-rules">Stopping rules<a class="anchor" aria-label="anchor" href="#stopping-rules"></a>
+</h2>
+<p><code>n_models</code> is a maximum, not a quota. Two numeric
+parameters decide when the agent should stop iterating, and they govern
+candidate building and refinement alike:</p>
+<div class="sourceCode" id="cb5"><pre class="downlit sourceCode r">
+<code class="sourceCode R"><span><span class="va">res</span> <span class="op">&lt;-</span> <span class="fu"><a href="../reference/atlas.html">atlas</a></span><span class="op">(</span><span class="va">mtcars</span>, <span class="st">"mpg"</span>,</span>
+<span>             n_models    <span class="op">=</span> <span class="fl">5</span>,     <span class="co"># at most five candidates</span></span>
+<span>             patience    <span class="op">=</span> <span class="fl">3</span>,     <span class="co"># stop after 3 attempts without improvement</span></span>
+<span>             min_improve <span class="op">=</span> <span class="fl">0.05</span><span class="op">)</span>  <span class="co"># gains under 5% (relative) don't count</span></span></code></pre></div>
+<p>The report always states <em>why</em> iteration stopped — limit
+reached or converged.</p>
 </div>
 <div class="section level2">
 <h2 id="what-you-get-back">What you get back<a class="anchor" aria-label="anchor" href="#what-you-get-back"></a>
 </h2>
-<div class="sourceCode" id="cb7"><pre class="downlit sourceCode r">
-<code class="sourceCode R"><span><span class="va">res</span>                  <span class="co"># leaderboard + markdown report of how each model was built</span></span>
-<span><span class="va">res</span><span class="op">$</span><span class="va">models</span>           <span class="co"># named list of fitted models</span></span>
+<div class="sourceCode" id="cb6"><pre class="downlit sourceCode r">
+<code class="sourceCode R"><span><span class="va">res</span>                    <span class="co"># print: leaderboard, constraint status, report</span></span>
+<span><span class="va">res</span><span class="op">$</span><span class="va">models</span>             <span class="co"># named list of fitted models</span></span>
 <span><span class="fu"><a href="https://rdrr.io/r/stats/predict.html" class="external-link">predict</a></span><span class="op">(</span><span class="va">res</span><span class="op">$</span><span class="va">models</span><span class="op">[[</span><span class="fl">1</span><span class="op">]</span><span class="op">]</span>, <span class="fu"><a href="https://rdrr.io/r/utils/head.html" class="external-link">head</a></span><span class="op">(</span><span class="va">mtcars</span><span class="op">)</span><span class="op">)</span></span>
-<span><span class="va">res</span><span class="op">$</span><span class="va">leaderboard</span>      <span class="co"># validation metric per model, best first</span></span>
-<span><span class="va">res</span><span class="op">$</span><span class="va">report</span>           <span class="co"># markdown: how each model was built, recommendation</span></span>
-<span><span class="fu"><a href="https://rdrr.io/r/base/cat.html" class="external-link">cat</a></span><span class="op">(</span><span class="va">res</span><span class="op">$</span><span class="va">code</span>, sep <span class="op">=</span> <span class="st">"\n\n"</span><span class="op">)</span>   <span class="co"># every line of R the agent ran</span></span>
-<span><span class="va">res</span><span class="op">$</span><span class="va">constraints</span>      <span class="co"># compliance table, if you passed constraints</span></span>
-<span><span class="va">res</span><span class="op">$</span><span class="va">session</span>          <span class="co"># the live session, for follow-ups</span></span></code></pre></div>
-<p>The session is the persistent part — follow up in the same
-context:</p>
-<div class="sourceCode" id="cb8"><pre class="downlit sourceCode r">
-<code class="sourceCode R"><span><span class="va">res</span><span class="op">$</span><span class="va">session</span><span class="op">$</span><span class="fu">tell</span><span class="op">(</span><span class="st">"why did this model win?"</span><span class="op">)</span></span>
-<span><span class="va">res</span><span class="op">$</span><span class="va">session</span><span class="op">$</span><span class="fu">tell</span><span class="op">(</span><span class="st">"add another candidate using only 3 predictors"</span><span class="op">)</span></span></code></pre></div>
-<p>See <code><a href="../articles/sessions.html">vignette("sessions")</a></code> for persistence, crash
-recovery, and resuming, and <code><a href="../articles/constraints.html">vignette("constraints")</a></code> for
-passing domain knowledge as enforced constraints.</p>
-</div>
-<div class="section level2">
-<h2 id="refinement-from-best-algorithm-to-optimum-model">Refinement: from best algorithm to optimum model<a class="anchor" aria-label="anchor" href="#refinement-from-best-algorithm-to-optimum-model"></a>
-</h2>
-<p>Finding the best algorithm is only half the job. By default
-(<code>refine = TRUE</code>), once the candidates are compared and
-constraints pass, Atlas takes the winner and iterates on its feature
-selection and engineering — one change per attempt (add/drop predictors,
-transformations, interactions, binning), refit, evaluate on the same
-validation scheme — until the stopping rules trigger:
-<code>patience</code> consecutive attempts without a relative gain of at
-least <code>min_improve</code>. The refined model is added to the
-results as <code>&lt;winner&gt;_refined</code> next to the original,
-constraints are re-verified against it, and the report says what
-improved and why iteration stopped.</p>
-</div>
-<div class="section level2">
-<h2 id="reviewable-validation-output">Reviewable validation output<a class="anchor" aria-label="anchor" href="#reviewable-validation-output"></a>
-</h2>
-<p>If the <a href="https://mattyoreilly.github.io/modelblueprint/" class="external-link">modelblueprint</a>
-package is installed, every build ends with a validation step
-(<code>validate = TRUE</code>, the default): the agent wraps the winning
-model in a <code>modelblueprint</code> and runs
-<code>model_validation()</code>, writing interactive Plotly HTML files —
-gain chart, predicted-vs-observed calibration, grouped residuals,
-one-way plots per feature, and PDPs — into the run directory for
-review.</p>
-<p>The plan the agent proposes is also required to be driven by the
-outcome’s distribution — binary outcomes get binomial models, counts get
-Poisson-family, skewed positive targets get Gamma/Tweedie or a log
-transform — with the reasoning stated in the plan you approve.</p>
+<span><span class="va">res</span><span class="op">$</span><span class="va">leaderboard</span>        <span class="co"># validation metric per model, best first</span></span>
+<span><span class="va">res</span><span class="op">$</span><span class="va">report</span>             <span class="co"># markdown: how each model was built, and why</span></span>
+<span><span class="va">res</span><span class="op">$</span><span class="va">constraints</span>        <span class="co"># compliance table (if constraints were set)</span></span>
+<span><span class="fu"><a href="https://rdrr.io/r/base/cat.html" class="external-link">cat</a></span><span class="op">(</span><span class="va">res</span><span class="op">$</span><span class="va">code</span>, sep <span class="op">=</span> <span class="st">"\n\n"</span><span class="op">)</span>   <span class="co"># the full script the agent ran</span></span>
+<span><span class="va">res</span><span class="op">$</span><span class="va">dir</span>                <span class="co"># the run directory holding all of the above</span></span></code></pre></div>
+<p>One element deserves special mention: <code>res$session</code> is the
+live session object, with the full conversation still in context.
+Anything you would ask a colleague who just built these models, you can
+ask it:</p>
+<div class="sourceCode" id="cb7"><pre class="downlit sourceCode r">
+<code class="sourceCode R"><span><span class="va">res</span><span class="op">$</span><span class="va">session</span><span class="op">$</span><span class="fu">tell</span><span class="op">(</span><span class="st">"why did the refined model beat the original?"</span><span class="op">)</span></span>
+<span><span class="va">res</span><span class="op">$</span><span class="va">session</span><span class="op">$</span><span class="fu">tell</span><span class="op">(</span><span class="st">"build one more candidate that uses at most 3 predictors"</span><span class="op">)</span></span></code></pre></div>
+<p>Sessions also survive R itself — see
+<code><a href="../articles/sessions.html">vignette("sessions")</a></code> for resuming, crash recovery, and
+interrupting a build in progress.</p>
 </div>
 <div class="section level2">
 <h2 id="how-big-can-the-data-be">How big can the data be?<a class="anchor" aria-label="anchor" href="#how-big-can-the-data-be"></a>
@@ -189,34 +205,24 @@ transform — with the reasoning stated in the plan you approve.</p>
 <ul>
 <li>
 <strong>Rows: bounded by your machine, not the LLM.</strong> The
-data itself is never sent to the model — only a profile and printed
-summaries — and all fitting runs locally. A million rows is fine from
-Atlas’s side; model fitting, cross-validation, and constraint checks
-simply take as long as they would if you ran them yourself. Tool output
-shown to the agent is capped (~8000 characters per chunk), so printing a
-huge object costs tokens but does not explode.</li>
+data is never uploaded, and printed tool output is capped (~8,000
+characters per chunk), so a million rows cost you fitting time, not
+tokens.</li>
 <li>
-<strong>Columns: keep it double digits, low hundreds at
-most.</strong> The agent reasons about variables by name. The data
-profile it receives lists up to 50 columns; with a few dozen columns it
-can think about each one, and into the hundreds it has to work with
-aggregates. For wide data (text features, one-hot blocks, omics),
-pre-select features first — or tell it how to in <code>goal</code> (“run
-a variance filter, then work with the top 30”).</li>
+<strong>Columns: double digits are ideal, low hundreds the practical
+ceiling.</strong> The agent reasons about variables by name; its data
+profile lists up to 50 columns. For wide data — one-hot blocks, text
+features, omics — pre-select first, or tell it how in <code>goal</code>
+(“variance filter, then work with the top 30”).</li>
 <li>
-<strong>Conversation length.</strong> A typical build is 15–40 LLM
-steps, comfortably inside the model’s context window. Many follow-ups
-and repair rounds accumulate, though — for a new modeling question,
-start a fresh <code><a href="../reference/atlas.html">atlas()</a></code> call instead of extending an old
-session forever.</li>
+<strong>Cost scales with agent steps.</strong> More candidates, more
+repair rounds, and more follow-ups mean more LLM calls; more rows don’t.
+A typical build is a few dozen calls.</li>
 <li>
-<strong>Cost scales with agent steps, not data size.</strong> More
-candidate models, more constraint repairs, and more follow-ups mean more
-LLM calls; more rows don’t.</li>
-<li>
-<strong>Disk.</strong> The run directory keeps a copy of the data
-(<code>data.rds</code>) so sessions resume cold; with very large
-datasets, point <code>dir =</code> somewhere with room.</li>
+<strong>Disk:</strong> the run directory keeps a copy of the data so
+sessions resume cold. Point <code>dir</code> (or
+<code>options(atlas.dir = )</code>) somewhere with room for large
+datasets.</li>
 </ul>
 </div>
   </div>

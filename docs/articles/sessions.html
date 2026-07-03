@@ -83,43 +83,39 @@
 
     
     
-<p><code><a href="../reference/atlas.html">atlas()</a></code> is a one-call wrapper around an
-<code>AtlasSession</code> — an R6 object that holds the conversation,
-the R environment the agent works in, and a run directory on disk. The
-session outlives the call: use it for follow-ups, and resume it after a
-crash or restart.</p>
+<p>A model build is a long-running, interruptible collaboration, so
+Atlas treats session state as something that lives on disk first and in
+memory second. The design has one load-bearing idea: <strong>the code
+log is the source of truth</strong>. Arbitrary R environments can’t be
+reliably serialised, but a recorded script re-run against the same data
+reconstructs one exactly. Atlas therefore checkpoints every code chunk
+the moment it executes, and “resuming” means replaying that script —
+models included — then restoring the conversation.</p>
 <div class="section level2">
 <h2 id="the-session-object">The session object<a class="anchor" aria-label="anchor" href="#the-session-object"></a>
 </h2>
+<p><code><a href="../reference/atlas.html">atlas()</a></code> is a one-call wrapper around an
+<code>AtlasSession</code> (R6), which holds the ellmer conversation, the
+R environment the agent works in, and the run directory:</p>
 <div class="sourceCode" id="cb1"><pre class="downlit sourceCode r">
 <code class="sourceCode R"><span><span class="kw"><a href="https://rdrr.io/r/base/library.html" class="external-link">library</a></span><span class="op">(</span><span class="va">Atlas</span><span class="op">)</span></span>
 <span></span>
 <span><span class="va">s</span> <span class="op">&lt;-</span> <span class="va"><a href="../reference/AtlasSession.html">AtlasSession</a></span><span class="op">$</span><span class="fu">new</span><span class="op">(</span><span class="va">mtcars</span>, outcome <span class="op">=</span> <span class="st">"mpg"</span>, n_models <span class="op">=</span> <span class="fl">3</span>,</span>
 <span>                      goal <span class="op">=</span> <span class="st">"prioritise interpretability"</span><span class="op">)</span></span>
-<span><span class="va">res</span> <span class="op">&lt;-</span> <span class="va">s</span><span class="op">$</span><span class="fu">build</span><span class="op">(</span><span class="op">)</span>                 <span class="co"># the full agentic loop</span></span>
-<span><span class="va">s</span><span class="op">$</span><span class="fu">tell</span><span class="op">(</span><span class="st">"swap model 2 for a GAM"</span><span class="op">)</span> <span class="co"># follow-up in the same context</span></span>
+<span><span class="va">res</span> <span class="op">&lt;-</span> <span class="va">s</span><span class="op">$</span><span class="fu">build</span><span class="op">(</span><span class="op">)</span>                 <span class="co"># the full lifecycle, approval included</span></span>
+<span><span class="va">s</span><span class="op">$</span><span class="fu">tell</span><span class="op">(</span><span class="st">"swap model 2 for a GAM"</span><span class="op">)</span> <span class="co"># follow-up, same context</span></span>
 <span><span class="va">s</span><span class="op">$</span><span class="fu">check</span><span class="op">(</span><span class="op">)</span>                        <span class="co"># re-verify constraints right now</span></span>
 <span><span class="va">s</span><span class="op">$</span><span class="fu">results</span><span class="op">(</span><span class="op">)</span>                      <span class="co"># assemble a fresh results object</span></span></code></pre></div>
-<p><code>res$session</code> from <code><a href="../reference/atlas.html">atlas()</a></code> is the same thing
-— every result carries its live session, so
-<code>res$session$tell("why did model 1 win?")</code> continues the
-conversation with full memory of the build.</p>
-<p>Iterative follow-ups inherit the session’s stopping rules
-(<code>patience</code> attempts without improvement; improvements under
-the <code>min_improve</code> fraction don’t count), so “keep refining
-the features until it stops improving” terminates on its own:</p>
-<div class="sourceCode" id="cb2"><pre class="downlit sourceCode r">
-<code class="sourceCode R"><span><span class="va">s</span> <span class="op">&lt;-</span> <span class="va"><a href="../reference/AtlasSession.html">AtlasSession</a></span><span class="op">$</span><span class="fu">new</span><span class="op">(</span><span class="va">mtcars</span>, <span class="st">"mpg"</span>, n_models <span class="op">=</span> <span class="fl">3</span>,   <span class="co"># n_models is a maximum</span></span>
-<span>                      patience <span class="op">=</span> <span class="fl">3</span>, min_improve <span class="op">=</span> <span class="fl">0.05</span><span class="op">)</span>  <span class="co"># 0.05 = 5%</span></span>
-<span><span class="va">res</span> <span class="op">&lt;-</span> <span class="va">s</span><span class="op">$</span><span class="fu">build</span><span class="op">(</span><span class="op">)</span></span>
-<span><span class="va">s</span><span class="op">$</span><span class="fu">tell</span><span class="op">(</span><span class="st">"take the best model and refine its feature engineering until</span></span>
-<span><span class="st">        performance stops improving"</span><span class="op">)</span></span></code></pre></div>
+<p>Every results object carries its live session as
+<code>res$session</code>, so a follow-up is never more than one call
+away.</p>
 </div>
 <div class="section level2">
 <h2 id="whats-on-disk">What’s on disk<a class="anchor" aria-label="anchor" href="#whats-on-disk"></a>
 </h2>
-<p>Each session owns a run directory (default
-<code>.atlas/&lt;timestamp&gt;</code>, or pass <code>dir =</code>):</p>
+<p>Each session owns a run directory — by default a timestamped folder
+under <code>getOption("atlas.dir", ".atlas")</code>; set that option
+once, or pass <code>dir</code> per run.</p>
 <table class="table">
 <colgroup>
 <col width="26%">
@@ -136,15 +132,15 @@ the features until it stops improving” terminates on its own:</p>
 </tr>
 <tr class="even">
 <td><code>meta.rds</code></td>
-<td>outcome, n_models, goal, constraints</td>
+<td>outcome, stopping rules, goal, constraints</td>
 </tr>
 <tr class="odd">
 <td><code>code.R</code></td>
-<td>every code chunk the agent ran, human-readable</td>
+<td>every chunk the agent ran — a readable script</td>
 </tr>
 <tr class="even">
 <td><code>code.rds</code></td>
-<td>the same chunks, exactly as recorded (for replay)</td>
+<td>the same chunks, exactly as recorded, for replay</td>
 </tr>
 <tr class="odd">
 <td><code>turns.rds</code></td>
@@ -152,7 +148,7 @@ the features until it stops improving” terminates on its own:</p>
 </tr>
 <tr class="even">
 <td><code>report.md</code></td>
-<td>the agent’s final report</td>
+<td>the agent’s report</td>
 </tr>
 <tr class="odd">
 <td><code>leaderboard.csv</code></td>
@@ -165,63 +161,62 @@ the features until it stops improving” terminates on its own:</p>
 </tbody>
 </table>
 <p>Checkpoints are written after every tool call and every reply, so at
-most the in-flight step is lost to a crash. <code>code.R</code> doubles
-as the reproducibility artifact: it is plain R you can read, audit, or
-run without Atlas.</p>
+worst a crash loses the single in-flight step. <code>code.R</code>
+doubles as the reproducibility artifact: plain R you can read, audit, or
+run without Atlas — or an API key.</p>
 </div>
 <div class="section level2">
 <h2 id="resuming">Resuming<a class="anchor" aria-label="anchor" href="#resuming"></a>
 </h2>
-<div class="sourceCode" id="cb3"><pre class="downlit sourceCode r">
+<div class="sourceCode" id="cb2"><pre class="downlit sourceCode r">
 <code class="sourceCode R"><span><span class="va">s</span> <span class="op">&lt;-</span> <span class="fu"><a href="../reference/atlas_resume.html">atlas_resume</a></span><span class="op">(</span><span class="st">".atlas/20260703-141500"</span><span class="op">)</span></span>
 <span><span class="va">s</span><span class="op">$</span><span class="fu">tell</span><span class="op">(</span><span class="st">"continue where you left off"</span><span class="op">)</span></span></code></pre></div>
-<p>Resume does not try to deserialize the working environment. It
-reloads the data, <strong>replays the recorded code log</strong> top to
-bottom (agent code is seeded, so this is exact), and restores the
-conversation turns — the agent comes back knowing everything it did,
-with all fitted objects rebuilt. The one thing to budget for: replay
-refits the models, so resuming a session whose models take minutes to
-fit takes those minutes again.</p>
+<p><code><a href="../reference/atlas_resume.html">atlas_resume()</a></code> reloads the data, replays the recorded
+code log top to bottom (agent code is seeded, so the replay is exact),
+and restores the conversation turns. The agent comes back knowing
+everything it did, with every fitted object rebuilt. The one cost to
+budget for: replay refits the models, so resuming a session whose models
+take minutes to fit takes those minutes again.</p>
 </div>
 <div class="section level2">
-<h2 id="interrupting-a-running-build">Interrupting a running build<a class="anchor" aria-label="anchor" href="#interrupting-a-running-build"></a>
+<h2 id="interrupting-a-build">Interrupting a build<a class="anchor" aria-label="anchor" href="#interrupting-a-build"></a>
 </h2>
-<p>You don’t have to wait for the agent to ask. In the console,
-interrupt with <code>Ctrl+C</code> / <code>Esc</code>, then resume with
-the new information — because every code chunk is checkpointed as it
-runs, the agent’s work up to the interruption is preserved and
-replayed:</p>
-<div class="sourceCode" id="cb4"><pre class="downlit sourceCode r">
+<p>You don’t have to wait for the agent to ask you something. Interrupt
+with <code>Ctrl+C</code> / <code>Esc</code>, then resume with the new
+information — the work up to the interruption was already
+checkpointed:</p>
+<div class="sourceCode" id="cb3"><pre class="downlit sourceCode r">
 <code class="sourceCode R"><span><span class="va">res</span> <span class="op">&lt;-</span> <span class="fu"><a href="../reference/atlas.html">atlas</a></span><span class="op">(</span><span class="va">big_data</span>, <span class="st">"claim_cost"</span><span class="op">)</span>   <span class="co"># Ctrl+C mid-build...</span></span>
+<span></span>
 <span><span class="va">s</span> <span class="op">&lt;-</span> <span class="fu"><a href="../reference/atlas_resume.html">atlas_resume</a></span><span class="op">(</span><span class="st">".atlas/20260703-141500"</span><span class="op">)</span></span>
 <span><span class="va">s</span><span class="op">$</span><span class="fu">tell</span><span class="op">(</span><span class="st">"stop trying tree models; the deployment target only supports GLMs"</span><span class="op">)</span></span></code></pre></div>
-<p>For programmatic front-ends, the underlying hook is the
-<code>interject</code> constructor argument: a <code>function()</code>
-polled after every tool call. Return a message to interrupt the agent
-(it is delivered with its next tool result, marked as the
-highest-priority instruction), or <code>NULL</code> when there is
-nothing to say.</p>
+<p>Programmatic front-ends get a cleaner hook: the
+<code>interject</code> constructor argument, a <code>function()</code>
+polled after every tool call. Return a message to have it delivered with
+the agent’s next tool result, marked as the highest-priority
+instruction; return <code>NULL</code> when there is nothing to say.</p>
 </div>
 <div class="section level2">
-<h2 id="human-in-the-loop">Human-in-the-loop<a class="anchor" aria-label="anchor" href="#human-in-the-loop"></a>
+<h2 id="questions-from-the-agent">Questions from the agent<a class="anchor" aria-label="anchor" href="#questions-from-the-agent"></a>
 </h2>
-<p>The agent has an <code>ask_user</code> tool. In an interactive R
-session it prints the question under an
-<code>── atlas needs your input ──</code> rule and blocks on the console
-— that’s how plan approval works. In non-interactive contexts
+<p>The agent asks for plan approval — and anything else it genuinely
+needs — through its <code>ask_user</code> tool. In an interactive
+session the question is printed and the console blocks on your answer;
+treat it as a conversation, not a yes/no gate, since whatever you type
+is folded into the plan. In non-interactive contexts
 (<code>Rscript</code>, CI) the tool tells the agent to use its best
-judgment and record the decision in the final report, so scripted runs
-never hang.</p>
+judgment and record the decision in the report, so scripted runs never
+hang. Front-ends can supply their own handler via
+<code>on_ask</code>.</p>
 </div>
 <div class="section level2">
 <h2 id="verbosity">Verbosity<a class="anchor" aria-label="anchor" href="#verbosity"></a>
 </h2>
-<p><code>verbose = TRUE</code> (default) streams the agent’s narration,
-each code chunk under an <code>── R ──</code> rule, its output as
-<code>#&gt;</code> lines, and constraint-check tables.
-<code>verbose = FALSE</code> runs silently; everything is still
-checkpointed to the run directory, so <code>report.md</code> and
-<code>code.R</code> tell the story afterwards.</p>
+<p><code>verbose = TRUE</code> (default) streams the narration, each
+code chunk, its output, and constraint-check tables to the console.
+<code>verbose = FALSE</code> runs silently — everything still
+checkpoints, so <code>report.md</code> and <code>code.R</code> tell the
+story afterwards.</p>
 </div>
   </div>
 

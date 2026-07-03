@@ -83,25 +83,29 @@
 
     
     
-<p><code>goal</code> carries soft preferences (“prioritise
-interpretability”); <code>constraints</code> carry hard requirements
-that must hold for every final model. Atlas enforces them three
-ways:</p>
+<p>An instruction to an LLM is a request; a constraint should be a
+guarantee. Atlas draws that line explicitly. Soft preferences
+(“prioritise interpretability”) go in <code>goal</code> and shape the
+agent’s choices. Hard requirements go in <code>constraints</code>, and
+any constraint that can be tested in code is <em>verified</em> — by
+Atlas, not the agent — against every final model.</p>
+<p>Enforcement happens at three points:</p>
 <ol style="list-style-type: decimal">
 <li>
-<strong>Up front</strong> — constraints go into the agent’s task as
-numbered hard requirements, and the agent is told to design for them
-from the start (e.g. pick monotone model forms rather than fixing
-violations later).</li>
+<strong>Up front:</strong> constraints appear in the agent’s task as
+numbered hard requirements, with an instruction to design for them from
+the start (pick a monotone model form; don’t bolt monotonicity on
+afterwards).</li>
 <li>
-<strong>During the build</strong> — the agent has a
-<code>check_constraints</code> tool to verify itself before declaring
-the build done.</li>
+<strong>During the build:</strong> the agent has a
+<code>check_constraints</code> tool to verify its own work before
+declaring the build done.</li>
 <li>
-<strong>After the build</strong> — Atlas independently runs every
-machine check against every model in the results. Violations are sent
-back to the agent to refit, up to <code>max_fix_rounds</code> times
-(default 2).</li>
+<strong>After the build:</strong> Atlas independently runs every
+machine check against every model in the results. Violations are
+formatted into a repair prompt and sent back — the agent must refit
+until the checks pass or <code>max_fix_rounds</code> is exhausted, and
+the outcome is reported either way.</li>
 </ol>
 <div class="section level2">
 <h2 id="three-ways-to-write-a-constraint">Three ways to write a constraint<a class="anchor" aria-label="anchor" href="#three-ways-to-write-a-constraint"></a>
@@ -114,7 +118,7 @@ back to the agent to refit, up to <code>max_fix_rounds</code> times
 <span>  uses_wt <span class="op">=</span> <span class="fu"><a href="../reference/con_uses.html">con_uses</a></span><span class="op">(</span><span class="st">"wt"</span><span class="op">)</span>,</span>
 <span>  mono_hp <span class="op">=</span> <span class="fu"><a href="../reference/con_monotone.html">con_monotone</a></span><span class="op">(</span><span class="st">"hp"</span>, <span class="st">"decreasing"</span><span class="op">)</span>,</span>
 <span></span>
-<span>  <span class="co"># 2. custom check: any function(model, data) -&gt; TRUE or a violation message</span></span>
+<span>  <span class="co"># 2. custom check: function(model, data) -&gt; TRUE or a violation message</span></span>
 <span>  non_neg <span class="op">=</span> <span class="fu"><a href="../reference/constraint.html">constraint</a></span><span class="op">(</span></span>
 <span>    <span class="st">"predicted mpg must never be negative"</span>,</span>
 <span>    check <span class="op">=</span> <span class="kw">function</span><span class="op">(</span><span class="va">model</span>, <span class="va">data</span><span class="op">)</span> <span class="op">{</span></span>
@@ -123,51 +127,50 @@ back to the agent to refit, up to <code>max_fix_rounds</code> times
 <span>    <span class="op">}</span></span>
 <span>  <span class="op">)</span>,</span>
 <span></span>
-<span>  <span class="co"># 3. plain string: enforced via instructions only (passed = NA in the table)</span></span>
+<span>  <span class="co"># 3. plain string: enforced via instructions only</span></span>
 <span>  no_leak <span class="op">=</span> <span class="st">"qsec is measured after the fact; never use it as a predictor"</span></span>
-<span><span class="op">)</span><span class="op">)</span></span>
-<span></span>
-<span><span class="va">res</span><span class="op">$</span><span class="va">constraints</span></span>
-<span><span class="co">#&gt;   model constraint passed detail</span></span>
-<span><span class="co">#&gt;   ...     one row per model x machine-checked constraint ...</span></span></code></pre></div>
-<p>Anything that can be tested in code should get a <code>check</code>;
-strings are for rules only the agent can honour (like “don’t use this
-column”). A check may also <code><a href="https://rdrr.io/r/base/stop.html" class="external-link">stop()</a></code> — errors count as
-violations, with the message as the detail.</p>
+<span><span class="op">)</span><span class="op">)</span></span></code></pre></div>
+<p>Prefer a <code>check</code> whenever the rule is testable; reserve
+strings for rules only the agent can honour. A check may also
+<code><a href="https://rdrr.io/r/base/stop.html" class="external-link">stop()</a></code> — errors count as violations, with the error message
+as the detail.</p>
 </div>
 <div class="section level2">
 <h2 id="the-built-in-helpers">The built-in helpers<a class="anchor" aria-label="anchor" href="#the-built-in-helpers"></a>
 </h2>
-<p>Both are model-agnostic: they only require
-<code>predict(model, newdata = &lt;data.frame&gt;)</code> to work, which
-Atlas tells the agent every final model must support.</p>
-<p><strong><code>con_uses(var)</code></strong> — the model must actually
-use a variable. The check scrambles (reverses) the column and compares
-predictions: if they don’t move, the model isn’t using it. No formula
-inspection, so it works for any model class and can’t be fooled by
-wrappers.</p>
-<p><strong><code>con_monotone(var, direction)</code></strong> —
-predictions must be monotone in a variable. ICE-style check: for a
-sample of observed rows, the variable is swept across its observed range
-with all other predictors held fixed, and every step of every sweep must
-move in the stated direction (within <code>tol</code>).</p>
-<p>Monotonicity is <em>non-strict</em>, so a model that ignores the
-variable passes trivially (flat is monotone). That makes it a
-conditional constraint — “if the model responds to <code>hp</code>, the
-effect must be decreasing” — without forcing the variable in:</p>
+<p>Both helpers are model-agnostic: they need only
+<code>predict(model, newdata = &lt;data.frame&gt;)</code> to work, and
+Atlas tells the agent every final model must support exactly that.</p>
+<p><code>con_uses(var)</code> asserts the model actually <em>uses</em> a
+variable. The check scrambles the column and compares predictions: if
+they don’t move, the variable isn’t contributing. No formula inspection,
+so it works identically for a <code>glm</code>, a random forest, or a
+wrapped model object.</p>
+<p><code>con_monotone(var, direction)</code> asserts predictions are
+monotone in a variable, ICE-style: for a sample of observed rows, the
+variable is swept across its range with everything else held fixed, and
+every step must move in the stated direction (within
+<code>tol</code>).</p>
+<p>Monotonicity is non-strict, and that is a feature: a model that
+ignores the variable has a flat — hence monotone — response, and passes.
+So <code><a href="../reference/con_monotone.html">con_monotone()</a></code> alone means “<em>if</em> the model
+responds to <code>hp</code>, the effect must be decreasing”. Pair it
+with <code><a href="../reference/con_uses.html">con_uses()</a></code> to also force the variable in:</p>
 <div class="sourceCode" id="cb2"><pre class="downlit sourceCode r">
-<code class="sourceCode R"><span><span class="co"># monotone if present:</span></span>
+<code class="sourceCode R"><span><span class="co"># conditional: monotone if used, but may be dropped</span></span>
 <span><span class="va">constraints</span> <span class="op">=</span> <span class="fu"><a href="https://rdrr.io/r/base/list.html" class="external-link">list</a></span><span class="op">(</span>mono_hp <span class="op">=</span> <span class="fu"><a href="../reference/con_monotone.html">con_monotone</a></span><span class="op">(</span><span class="st">"hp"</span>, <span class="st">"decreasing"</span><span class="op">)</span><span class="op">)</span></span>
 <span></span>
-<span><span class="co"># must be used AND monotone:</span></span>
+<span><span class="co"># mandatory and monotone</span></span>
 <span><span class="va">constraints</span> <span class="op">=</span> <span class="fu"><a href="https://rdrr.io/r/base/list.html" class="external-link">list</a></span><span class="op">(</span>uses_hp <span class="op">=</span> <span class="fu"><a href="../reference/con_uses.html">con_uses</a></span><span class="op">(</span><span class="st">"hp"</span><span class="op">)</span>,</span>
 <span>                   mono_hp <span class="op">=</span> <span class="fu"><a href="../reference/con_monotone.html">con_monotone</a></span><span class="op">(</span><span class="st">"hp"</span>, <span class="st">"decreasing"</span><span class="op">)</span><span class="op">)</span></span></code></pre></div>
 </div>
 <div class="section level2">
-<h2 id="more-custom-check-patterns">More custom check patterns<a class="anchor" aria-label="anchor" href="#more-custom-check-patterns"></a>
+<h2 id="custom-check-patterns">Custom check patterns<a class="anchor" aria-label="anchor" href="#custom-check-patterns"></a>
 </h2>
+<p>Any property you can compute from <code>(model, data)</code> can be a
+guarantee:</p>
 <div class="sourceCode" id="cb3"><pre class="downlit sourceCode r">
-<code class="sourceCode R"><span><span class="co"># accuracy floor on a reference set</span></span>
+<code class="sourceCode R"><span><span class="co"># a performance floor</span></span>
 <span><span class="va">min_r2</span> <span class="op">&lt;-</span> <span class="fu"><a href="../reference/constraint.html">constraint</a></span><span class="op">(</span></span>
 <span>  <span class="st">"in-sample R-squared must be at least 0.7"</span>,</span>
 <span>  check <span class="op">=</span> <span class="kw">function</span><span class="op">(</span><span class="va">model</span>, <span class="va">data</span><span class="op">)</span> <span class="op">{</span></span>
@@ -197,46 +200,52 @@ effect must be decreasing” — without forcing the variable in:</p>
 <span><span class="op">)</span></span></code></pre></div>
 </div>
 <div class="section level2">
-<h2 id="excluding-features-and-catching-leakage">Excluding features and catching leakage<a class="anchor" aria-label="anchor" href="#excluding-features-and-catching-leakage"></a>
+<h2 id="excluding-features-and-catching-leakage">Excluding features, and catching leakage<a class="anchor" aria-label="anchor" href="#excluding-features-and-catching-leakage"></a>
 </h2>
-<p>Constraints govern <em>how</em> variables are used;
-<code>exclude</code> removes them entirely — for columns that won’t
-exist at prediction time in deployment, or that leak the outcome.
-Excluded columns are dropped from the data before the agent ever sees
-it, which is a stronger guarantee than any instruction:</p>
+<p>Constraints govern <em>how</em> variables are used; sometimes the
+right answer is that a variable must not exist at all — it won’t be
+available at prediction time in deployment, or it leaks the outcome.
+That is <code>exclude</code>, and it is deliberately blunt: excluded
+columns are dropped from the data <strong>before the agent ever sees
+it</strong>, which no instruction can match for certainty.</p>
 <div class="sourceCode" id="cb4"><pre class="downlit sourceCode r">
 <code class="sourceCode R"><span><span class="va">res</span> <span class="op">&lt;-</span> <span class="fu"><a href="../reference/atlas.html">atlas</a></span><span class="op">(</span><span class="va">claims</span>, <span class="st">"severity"</span>,</span>
-<span>             exclude <span class="op">=</span> <span class="fu"><a href="https://rdrr.io/r/base/c.html" class="external-link">c</a></span><span class="op">(</span><span class="st">"settlement_amount"</span>,   <span class="co"># known after the outcome</span></span>
-<span>                         <span class="st">"claim_ref"</span><span class="op">)</span><span class="op">)</span>          <span class="co"># ID, useless in deployment</span></span></code></pre></div>
+<span>             exclude <span class="op">=</span> <span class="fu"><a href="https://rdrr.io/r/base/c.html" class="external-link">c</a></span><span class="op">(</span><span class="st">"settlement_amount"</span>,   <span class="co"># known only after the outcome</span></span>
+<span>                         <span class="st">"claim_ref"</span><span class="op">)</span><span class="op">)</span>          <span class="co"># an ID; useless in deployment</span></span></code></pre></div>
 <p>The surviving predictors are screened automatically with
-<code><a href="../reference/atlas_leakage_screen.html">atlas_leakage_screen()</a></code> — a fast univariate check: any
-column that alone explains almost all of the outcome (R-squared at/above
-0.95) is flagged in the agent’s brief, and the agent must confirm with
-you that it is genuinely available at prediction time before using it.
-You can also run the screen yourself before any modeling:</p>
+<code><a href="../reference/atlas_leakage_screen.html">atlas_leakage_screen()</a></code>: a fast univariate check that flags
+any column which alone explains almost all of the outcome (R² ≥ 0.95 by
+default) — the classic signature of a column derived from, or recorded
+after, the target. Flagged columns are listed in the agent’s brief with
+an order to confirm each one with you before relying on it. The screen
+is also useful standalone, before any modeling:</p>
 <div class="sourceCode" id="cb5"><pre class="downlit sourceCode r">
 <code class="sourceCode R"><span><span class="fu"><a href="../reference/atlas_leakage_screen.html">atlas_leakage_screen</a></span><span class="op">(</span><span class="va">claims</span>, <span class="st">"severity"</span><span class="op">)</span></span>
 <span><span class="co">#&gt;            variable    r2 flagged</span></span>
 <span><span class="co">#&gt;   settlement_amount 0.998    TRUE</span></span>
 <span><span class="co">#&gt;            exposure 0.310   FALSE</span></span></code></pre></div>
+<p>Being univariate, the screen catches copy-and-derived-column leakage,
+not leakage that only emerges in combination — that is what the agent’s
+own vigilance instructions and your <code>exclude</code> list are
+for.</p>
 </div>
 <div class="section level2">
-<h2 id="suggested-by-the-agent">Suggested by the agent<a class="anchor" aria-label="anchor" href="#suggested-by-the-agent"></a>
+<h2 id="constraints-the-agent-suggests">Constraints the agent suggests<a class="anchor" aria-label="anchor" href="#constraints-the-agent-suggests"></a>
 </h2>
-<p>You may forget a monotonicity constraint that’s obviously right for
-the domain (price should not fall as floor area grows). Atlas is
-instructed to think about this during data exploration: when it believes
-a predictor should have a monotone effect, it includes the suggestion —
-variable, direction, and a one-line why — in the plan it asks you to
-approve. Each suggestion you approve is added via its
-<code>add_monotone_constraint</code> tool and becomes a hard,
-machine-checked constraint, verified and repaired exactly like one you
-passed yourself (and persisted, so it survives resumes).</p>
+<p>Some monotone constraints are so obviously right that forgetting them
+is the only failure mode — price should not fall as floor area grows.
+During exploration, Atlas is instructed to think about which predictors
+should plausibly have monotone effects, and to include any such
+suggestions — variable, direction, one-line rationale — in the plan it
+asks you to approve. Each suggestion you approve is added through the
+agent’s <code>add_monotone_constraint</code> tool and becomes a real,
+machine-checked constraint: verified, repaired on violation, and
+persisted with the session. Nothing is added without your approval.</p>
 </div>
 <div class="section level2">
 <h2 id="constraints-from-natural-language">Constraints from natural language<a class="anchor" aria-label="anchor" href="#constraints-from-natural-language"></a>
 </h2>
-<p><code><a href="../reference/extract_constraints.html">extract_constraints()</a></code> parses a plain-language brief into
+<p><code><a href="../reference/extract_constraints.html">extract_constraints()</a></code> turns a plain-language brief into
 constraint objects, mapping to machine checks wherever it recognises a
 checkable rule:</p>
 <div class="sourceCode" id="cb6"><pre class="downlit sourceCode r">
@@ -254,28 +263,29 @@ checkable rule:</p>
 <span><span class="co">#&gt; [prompt-only]     Never use qsec as a predictor.</span></span>
 <span></span>
 <span><span class="va">res</span> <span class="op">&lt;-</span> <span class="fu"><a href="../reference/atlas.html">atlas</a></span><span class="op">(</span><span class="va">mtcars</span>, <span class="st">"mpg"</span>, constraints <span class="op">=</span> <span class="va">cons</span><span class="op">)</span></span></code></pre></div>
-<p>The parse is a judgment call, so it returns the list for you to
-inspect and edit before the build. Passing <code>data</code> lets it
-validate column names; anything unmappable (unknown column, monotone
-rule without a direction) falls back to prompt-only enforcement instead
-of producing a broken check.</p>
+<p>Parsing intent is a judgment call, so the function returns the list
+for you to inspect and edit rather than feeding it straight into a
+build. Pass <code>data</code> to validate column names; anything
+unmappable (an unknown column, a monotone rule without a direction)
+falls back to prompt-only enforcement instead of becoming a broken
+check.</p>
 </div>
 <div class="section level2">
 <h2 id="reading-the-compliance-table">Reading the compliance table<a class="anchor" aria-label="anchor" href="#reading-the-compliance-table"></a>
 </h2>
-<p><code>res$constraints</code> has one row per model x machine-checked
+<p><code>res$constraints</code> has one row per model × machine-checked
 constraint, plus one row per prompt-only constraint:</p>
 <ul>
 <li>
-<code>passed = TRUE/FALSE</code> — the check ran;
-<code>detail</code> explains failures.</li>
+<code>passed = TRUE</code> / <code>FALSE</code> — the check ran;
+<code>detail</code> explains any failure.</li>
 <li>
-<code>passed = NA</code> — prompt-only: enforced via instructions,
-not verifiable.</li>
+<code>passed = NA</code> — prompt-only: enforced through
+instructions, not verifiable.</li>
 </ul>
-<p><code>print(res)</code> shows an <code>UNMET CONSTRAINTS</code> block
-if anything failed after all repair rounds; a session’s current state
-can be re-checked any time with <code>res$session$check()</code>.</p>
+<p><code>print(res)</code> surfaces failures loudly, and a session’s
+current state can be re-checked at any time with
+<code>res$session$check()</code>.</p>
 </div>
   </div>
 

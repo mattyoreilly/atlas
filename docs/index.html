@@ -76,74 +76,69 @@
 <div class="section level1">
 <div class="page-header"><h1 id="atlas">Atlas<a class="anchor" aria-label="anchor" href="#atlas"></a>
 </h1></div>
-<p>Automated model building for R, driven by an agentic LLM (<a href="https://ellmer.tidyverse.org" class="external-link">ellmer</a>). Give Atlas a dataset and a target; it explores the data, proposes a modeling plan for your approval, then writes and runs R code to fit and evaluate candidate models — pausing for your input when a decision needs you. You get back fitted models, a leaderboard, the full code trail, and a report of how each model was built.</p>
-<p><strong>Your data stays on your machine.</strong> The LLM sees a compact profile of the data and whatever output the agent prints — never the rows themselves. All model fitting happens locally in your R session.</p>
+<p>Atlas builds models for you, and shows its work. Give it a data frame and a target; an LLM agent (via <a href="https://ellmer.tidyverse.org" class="external-link">ellmer</a>) explores the data, proposes a modeling plan for your approval, then writes and runs R code to fit, compare, and refine candidate models. You get back fitted models ready for <code><a href="https://rdrr.io/r/stats/predict.html" class="external-link">predict()</a></code>, a leaderboard, a written report — and, because the agent works by writing R, the complete script of everything it did.</p>
+<p>Three ideas separate Atlas from “ask a chatbot for model code”:</p>
+<ul>
+<li><p><strong>Domain knowledge is enforced, not suggested.</strong> Constraints like “<code>wt</code> must be used” or “predictions must never rise with horsepower” are machine-verified against every final model, and violations are sent back to the agent to fix.</p></li>
+<li><p><strong>Sessions are persistent.</strong> Every code chunk and conversation turn is checkpointed to disk as it happens. A crash, a restart, or a deliberate interruption loses nothing — resume and keep going.</p></li>
+<li><p><strong>Your data stays on your machine.</strong> The LLM sees column names, types, and printed summaries, never the rows. All fitting happens locally in your R session.</p></li>
+</ul>
 <div class="section level2">
 <h2 id="installation">Installation<a class="anchor" aria-label="anchor" href="#installation"></a>
 </h2>
+<p>Atlas is not yet on CRAN. Install from a local checkout or GitHub:</p>
 <div class="sourceCode" id="cb1"><pre class="downlit sourceCode r">
 <code class="sourceCode R"><span><span class="co"># install.packages("pak")</span></span>
 <span><span class="fu">pak</span><span class="fu">::</span><span class="fu"><a href="https://pak.r-lib.org/reference/local_install.html" class="external-link">local_install</a></span><span class="op">(</span><span class="st">"path/to/Atlas"</span><span class="op">)</span></span></code></pre></div>
-<p>Set an API key for your provider (default: <code>ANTHROPIC_API_KEY</code>). The persistent way: <code><a href="https://usethis.r-lib.org/reference/edit.html" class="external-link">usethis::edit_r_environ()</a></code>, add <code>ANTHROPIC_API_KEY=sk-ant-...</code>, save, restart R. Any tool-capable ellmer provider works via the <code>chat</code> argument.</p>
+<p>You also need an API key for an LLM provider. Atlas defaults to Anthropic: run <code><a href="https://usethis.r-lib.org/reference/edit.html" class="external-link">usethis::edit_r_environ()</a></code>, add a line <code>ANTHROPIC_API_KEY=sk-ant-...</code>, save, and restart R. Any tool-capable ellmer provider works via the <code>chat</code> argument.</p>
 </div>
 <div class="section level2">
-<h2 id="quickstart">Quickstart<a class="anchor" aria-label="anchor" href="#quickstart"></a>
+<h2 id="usage">Usage<a class="anchor" aria-label="anchor" href="#usage"></a>
 </h2>
 <div class="sourceCode" id="cb2"><pre class="downlit sourceCode r">
 <code class="sourceCode R"><span><span class="kw"><a href="https://rdrr.io/r/base/library.html" class="external-link">library</a></span><span class="op">(</span><span class="va">Atlas</span><span class="op">)</span></span>
 <span></span>
-<span><span class="va">res</span> <span class="op">&lt;-</span> <span class="fu"><a href="reference/atlas.html">atlas</a></span><span class="op">(</span><span class="va">mtcars</span>, outcome <span class="op">=</span> <span class="st">"mpg"</span>,</span>
-<span>             n_models <span class="op">=</span> <span class="fl">3</span>,        <span class="co"># maximum; stops earlier once converged</span></span>
-<span>             patience <span class="op">=</span> <span class="fl">3</span>,        <span class="co"># stop after 3 attempts without improvement</span></span>
-<span>             min_improve <span class="op">=</span> <span class="fl">0.05</span>,  <span class="co"># &lt;5% better doesn't count as improvement</span></span>
-<span>             goal <span class="op">=</span> <span class="st">"prioritise interpretability"</span><span class="op">)</span></span>
-<span></span>
-<span><span class="va">res</span>              <span class="co"># leaderboard + report of how each model was built</span></span>
-<span><span class="va">res</span><span class="op">$</span><span class="va">models</span>       <span class="co"># named list of fitted models, ready for predict()</span></span>
-<span><span class="va">res</span><span class="op">$</span><span class="va">code</span>         <span class="co"># every line of R the agent ran</span></span></code></pre></div>
-<p>After the winning algorithm is found, Atlas keeps refining its feature selection and engineering (one change per attempt, same validation scheme) until the stopping rules say it has converged — the optimum lands in the results as <code>&lt;winner&gt;_refined</code>. The session stays live for anything further:</p>
+<span><span class="va">res</span> <span class="op">&lt;-</span> <span class="fu"><a href="reference/atlas.html">atlas</a></span><span class="op">(</span><span class="va">mtcars</span>, outcome <span class="op">=</span> <span class="st">"mpg"</span>, goal <span class="op">=</span> <span class="st">"prioritise interpretability"</span><span class="op">)</span></span></code></pre></div>
+<p>The agent narrates as it works. It profiles the data (flagging suspected target leakage), proposes a plan — model families chosen to match the outcome’s distribution, a validation scheme, any monotonicity it thinks the domain implies — and <strong>waits for your approval in the console</strong>. You can answer “yes”, or redirect it: “only linear models, and don’t use qsec”. Then it builds up to <code>n_models</code> candidates, compares them on held-out data, refines the winner’s features until improvement stalls, and verifies any constraints.</p>
 <div class="sourceCode" id="cb3"><pre class="downlit sourceCode r">
-<code class="sourceCode R"><span><span class="va">res</span><span class="op">$</span><span class="va">session</span><span class="op">$</span><span class="fu">tell</span><span class="op">(</span><span class="st">"why did the refined model beat the original?"</span><span class="op">)</span></span>
-<span><span class="va">res</span><span class="op">$</span><span class="va">session</span><span class="op">$</span><span class="fu">tell</span><span class="op">(</span><span class="st">"try a challenger that uses at most 3 predictors"</span><span class="op">)</span></span></code></pre></div>
+<code class="sourceCode R"><span><span class="va">res</span>               <span class="co"># leaderboard, constraint compliance, report</span></span>
+<span><span class="va">res</span><span class="op">$</span><span class="va">models</span>        <span class="co"># fitted models: predict(res$models$glm1, newdata)</span></span>
+<span><span class="va">res</span><span class="op">$</span><span class="va">code</span>          <span class="co"># every line of R the agent ran, in order</span></span>
+<span><span class="va">res</span><span class="op">$</span><span class="va">session</span><span class="op">$</span><span class="fu">tell</span><span class="op">(</span><span class="st">"why did the refined model win?"</span><span class="op">)</span>   <span class="co"># keep talking</span></span></code></pre></div>
+<p>Convergence is under your control: <code>n_models</code> is a maximum, and the stopping rules — <code>patience</code> attempts without improvement, gains under <code>min_improve</code> don’t count — govern both candidate building and refinement.</p>
 </div>
 <div class="section level2">
-<h2 id="domain-knowledge-as-enforced-constraints">Domain knowledge as enforced constraints<a class="anchor" aria-label="anchor" href="#domain-knowledge-as-enforced-constraints"></a>
+<h2 id="constraints">Constraints<a class="anchor" aria-label="anchor" href="#constraints"></a>
 </h2>
-<p>Constraints are hard requirements, and machine-checked ones are <em>verified</em> against every final model — violations are sent back to the agent to fix:</p>
+<p>Pass hard requirements as a list. Strings are enforced through instructions; constraint objects carry a <code>check</code> function that Atlas runs against every final model, feeding failures back to the agent for repair:</p>
 <div class="sourceCode" id="cb4"><pre class="downlit sourceCode r">
 <code class="sourceCode R"><span><span class="va">res</span> <span class="op">&lt;-</span> <span class="fu"><a href="reference/atlas.html">atlas</a></span><span class="op">(</span><span class="va">mtcars</span>, <span class="st">"mpg"</span>, constraints <span class="op">=</span> <span class="fu"><a href="https://rdrr.io/r/base/list.html" class="external-link">list</a></span><span class="op">(</span></span>
-<span>  uses_wt <span class="op">=</span> <span class="fu"><a href="reference/con_uses.html">con_uses</a></span><span class="op">(</span><span class="st">"wt"</span><span class="op">)</span>,                   <span class="co"># must use wt</span></span>
-<span>  mono_hp <span class="op">=</span> <span class="fu"><a href="reference/con_monotone.html">con_monotone</a></span><span class="op">(</span><span class="st">"hp"</span>, <span class="st">"decreasing"</span><span class="op">)</span>, <span class="co"># monotone in hp</span></span>
-<span>  no_leak <span class="op">=</span> <span class="st">"never use qsec; it is measured after the fact"</span></span>
+<span>  uses_wt <span class="op">=</span> <span class="fu"><a href="reference/con_uses.html">con_uses</a></span><span class="op">(</span><span class="st">"wt"</span><span class="op">)</span>,                    <span class="co"># must actually use wt</span></span>
+<span>  mono_hp <span class="op">=</span> <span class="fu"><a href="reference/con_monotone.html">con_monotone</a></span><span class="op">(</span><span class="st">"hp"</span>, <span class="st">"decreasing"</span><span class="op">)</span>,  <span class="co"># effect must be monotone</span></span>
+<span>  no_leak <span class="op">=</span> <span class="st">"qsec is measured after the fact; never use it"</span></span>
 <span><span class="op">)</span><span class="op">)</span></span>
-<span><span class="va">res</span><span class="op">$</span><span class="va">constraints</span>   <span class="co"># compliance table: model x constraint</span></span></code></pre></div>
-<p>Or write the brief in plain language and let the LLM structure it:</p>
+<span><span class="va">res</span><span class="op">$</span><span class="va">constraints</span>    <span class="co"># one row per model x constraint: passed, detail</span></span></code></pre></div>
+<p>Columns that won’t exist at prediction time don’t belong in the data at all — <code>exclude</code> removes them before the agent ever sees it, and <code><a href="reference/atlas_leakage_screen.html">atlas_leakage_screen()</a></code> automatically flags predictors that alone explain almost all of the outcome. See <code><a href="articles/constraints.html">vignette("constraints")</a></code>.</p>
+</div>
+<div class="section level2">
+<h2 id="sessions">Sessions<a class="anchor" aria-label="anchor" href="#sessions"></a>
+</h2>
+<p><code><a href="reference/atlas.html">atlas()</a></code> is a one-call wrapper around an <code>AtlasSession</code>, which lives in the run directory as much as in memory: data, code log, conversation, and artifacts (report, leaderboard, models, validation plots) are all on disk, so sessions survive anything:</p>
 <div class="sourceCode" id="cb5"><pre class="downlit sourceCode r">
-<code class="sourceCode R"><span><span class="va">cons</span> <span class="op">&lt;-</span> <span class="fu"><a href="reference/extract_constraints.html">extract_constraints</a></span><span class="op">(</span></span>
-<span>  <span class="st">"weight must be in the model; predictions can never go up as</span></span>
-<span><span class="st">   horsepower rises"</span>, data <span class="op">=</span> <span class="va">mtcars</span><span class="op">)</span></span></code></pre></div>
-</div>
-<div class="section level2">
-<h2 id="persistent-sessions">Persistent sessions<a class="anchor" aria-label="anchor" href="#persistent-sessions"></a>
-</h2>
-<p>Every run checkpoints to its own directory: the data, each code chunk, the conversation, and the final artifacts (reports, validation plots, model bundles). By default runs land in <code>.atlas/&lt;timestamp&gt;</code> under the working directory — set <code>options(atlas.dir = "~/atlas-runs")</code> in your <code>.Rprofile</code> to send them anywhere you like. Sessions survive crashes and restarts:</p>
-<div class="sourceCode" id="cb6"><pre class="downlit sourceCode r">
 <code class="sourceCode R"><span><span class="va">s</span> <span class="op">&lt;-</span> <span class="fu"><a href="reference/atlas_resume.html">atlas_resume</a></span><span class="op">(</span><span class="st">".atlas/20260703-141500"</span><span class="op">)</span></span>
-<span><span class="va">s</span><span class="op">$</span><span class="fu">tell</span><span class="op">(</span><span class="st">"continue where you left off"</span><span class="op">)</span></span></code></pre></div>
+<span><span class="va">s</span><span class="op">$</span><span class="fu">tell</span><span class="op">(</span><span class="st">"swap the elastic net for a GAM and re-compare"</span><span class="op">)</span></span></code></pre></div>
+<p>Runs land in <code>.atlas/&lt;timestamp&gt;</code> by default; set <code>options(atlas.dir = "~/atlas-runs")</code> to choose. See <code><a href="articles/sessions.html">vignette("sessions")</a></code>.</p>
 </div>
 <div class="section level2">
-<h2 id="how-big-can-the-data-go">How big can the data go?<a class="anchor" aria-label="anchor" href="#how-big-can-the-data-go"></a>
+<h2 id="limitations">Limitations<a class="anchor" aria-label="anchor" href="#limitations"></a>
 </h2>
-<p>Rows are cheap, columns are the limit that matters:</p>
 <ul>
 <li>
-<strong>Rows</strong> — bounded by your machine, not the LLM: the data is never sent to the model, and fitting happens locally. Hundreds of thousands to millions of rows work; model fitting and constraint checks just take longer.</li>
+<strong>Columns are the scaling limit, not rows.</strong> Fitting is local, so a million rows just take the time they take — but the agent reasons about variables by name, and past a few dozen columns that reasoning degrades. Pre-select features for wide data.</li>
 <li>
-<strong>Columns</strong> — the practical LLM-side limit. The agent reasons about variables by name; up to a few dozen columns it does that well, into the low hundreds it degrades. For wide data, pre-select features first or say how to in <code>goal</code>.</li>
+<strong>Cost scales with agent steps</strong>, not data size: more candidates, more repair rounds, more follow-ups mean more LLM calls.</li>
 <li>
-<strong>Cost &amp; context</strong> — a typical build is a few dozen LLM calls; cost scales with the number of agent steps (and <code>max_fix_rounds</code> repairs), not with data size. Start a fresh session per modeling task rather than piling many follow-ups into one conversation.</li>
-<li>
-<strong>Disk</strong> — the run directory stores a copy of the data (<code>data.rds</code>) so sessions can be resumed cold; budget for that with very large datasets.</li>
+<strong>An agent is not a statistician.</strong> Atlas verifies what you tell it to verify; judgment about what the model is <em>for</em> stays with you. Read the report, check <code>res$code</code>, and look at the validation output.</li>
 </ul>
 </div>
 <div class="section level2">
@@ -151,11 +146,11 @@
 </h2>
 <ul>
 <li>
-<code><a href="articles/atlas.html">vignette("atlas")</a></code> — getting started, API keys, what you get back</li>
+<code><a href="articles/atlas.html">vignette("atlas")</a></code> — a full walkthrough: setup, the build lifecycle, what you get back</li>
 <li>
-<code><a href="articles/constraints.html">vignette("constraints")</a></code> — domain knowledge, custom checks, NL extraction</li>
+<code><a href="articles/constraints.html">vignette("constraints")</a></code> — encoding domain knowledge that can’t be ignored</li>
 <li>
-<code><a href="articles/sessions.html">vignette("sessions")</a></code> — persistence, resuming, follow-ups</li>
+<code><a href="articles/sessions.html">vignette("sessions")</a></code> — persistence, resuming, and steering mid-build</li>
 </ul>
 </div>
 </div>
