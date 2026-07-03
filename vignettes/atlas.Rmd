@@ -1,0 +1,143 @@
+---
+title: "Building models with Atlas"
+output: rmarkdown::html_vignette
+vignette: >
+  %\VignetteIndexEntry{Building models with Atlas}
+  %\VignetteEngine{knitr::rmarkdown}
+  %\VignetteEncoding{UTF-8}
+---
+
+```{r, include = FALSE}
+knitr::opts_chunk$set(collapse = TRUE, comment = "#>", eval = FALSE)
+```
+
+Atlas hands your data to an LLM agent that explores it, proposes a modeling
+plan for your approval, then fits and evaluates candidate models by writing
+and running R code. Chunks below are not evaluated at build time because they
+need an API key (`ANTHROPIC_API_KEY` by default, or any ellmer provider).
+
+## Setting your API key
+
+Atlas talks to the LLM through ellmer, which reads the key from an
+environment variable — `ANTHROPIC_API_KEY` for the default provider. Without
+it you'll see:
+
+```
+Error in `anthropic_key()`:
+! Can't find env var `ANTHROPIC_API_KEY`.
+```
+
+The recommended, persistent way is to put it in your `.Renviron`:
+
+```{r}
+usethis::edit_r_environ()
+```
+
+add this line (no quotes), save, then restart R:
+
+```
+ANTHROPIC_API_KEY=sk-ant-...
+```
+
+For a one-off session you can set it inline instead (don't save this in a
+script you share):
+
+```{r}
+Sys.setenv(ANTHROPIC_API_KEY = "sk-ant-...")
+```
+
+Other providers use their own variables, e.g. `OPENAI_API_KEY` for
+`ellmer::chat_openai()` — see the [ellmer provider
+docs](https://ellmer.tidyverse.org/reference/index.html#chatbots) for the
+full list.
+
+## One call
+
+```{r}
+library(Atlas)
+
+res <- atlas(mtcars, outcome = "mpg", n_models = 1,
+             goal = "prioritise interpretability")
+```
+
+The agent streams what it is doing, and pauses in the console when it wants
+your approval of the plan or input on a decision. When it finishes:
+
+```{r}
+res                  # leaderboard + markdown report of how each model was built
+res$models           # named list of fitted models
+predict(res$models[[1]], head(mtcars))
+cat(res$code, sep = "\n\n")   # every line of R the agent ran
+```
+
+## Domain knowledge: constraints
+
+`goal` carries soft preferences; `constraints` carry hard requirements. Each
+constraint is a plain-language rule the agent must follow, optionally with a
+`check` function — and checked constraints are *verified*: after the build,
+every final model is tested, and violations are sent back to the agent to fix
+(up to `max_fix_rounds` times).
+
+```{r}
+res <- atlas(mtcars, "mpg", n_models = 2, constraints = list(
+  uses_wt = con_uses("wt"),                  # wt must contribute to predictions
+  mono_hp = con_monotone("hp", "decreasing"), # predictions decreasing in hp
+  no_leak = "qsec is measured after the fact; never use it as a predictor"
+))
+
+res$constraints   # compliance table: model x constraint, passed, detail
+```
+
+The built-in helpers are model-agnostic (they only need
+`predict(model, newdata)`): `con_uses()` scrambles the column and checks that
+predictions move; `con_monotone()` sweeps the variable over its range with
+other predictors held fixed and checks the direction of every step.
+
+Custom checks are just functions of `(model, data)` returning `TRUE` or a
+description of the violation:
+
+```{r}
+non_negative <- constraint(
+  "predicted mpg must never be negative",
+  check = function(model, data) {
+    p <- predict(model, newdata = data)
+    if (all(p >= 0)) TRUE else "some predictions are negative"
+  }
+)
+```
+
+Plain strings (like `no_leak` above) are enforced through instructions and
+shown as `passed = NA` in the compliance table — use a `check` whenever the
+rule can be tested in code.
+
+## Sessions: follow-ups and persistence
+
+`atlas()` is a wrapper around an `AtlasSession`, which stays alive for
+follow-up work in the same context:
+
+```{r}
+res$session$tell("why did the random forest win?")
+res$session$tell("add a 4th candidate using only 3 predictors")
+```
+
+Everything is checkpointed to a run directory (`.atlas/<timestamp>` by
+default): the data, every code chunk, the full conversation, and the final
+artifacts (`report.md`, `leaderboard.csv`, `models.rds`). If R crashes or you
+come back tomorrow, resume:
+
+```{r}
+s <- atlas_resume(".atlas/20260703-141500")
+s$tell("continue where you left off")
+s$results()
+```
+
+Resume replays the recorded code log against the saved data, so the working
+environment — fitted models included — is reconstructed exactly.
+
+## Choosing a provider
+
+Any tool-capable ellmer chat works:
+
+```{r}
+res <- atlas(mtcars, "mpg", chat = ellmer::chat_openai(model = "gpt-5"))
+```

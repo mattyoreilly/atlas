@@ -1,0 +1,26 @@
+Package: Atlas
+Title: Automated Model Building with LLM Agents
+Version: 0.1.0
+Authors@R: person("Matt", "O'Reilly", email = "fermoymatt@gmail.com", role = c("aut", "cre"))
+Description: Builds statistical and machine learning models in R by driving an
+    agentic LLM loop ('ellmer'). The agent explores your data, proposes a plan
+    for your approval, fits and evaluates candidate models, and returns the
+    fitted models with a leaderboard and a report of how each was built. All
+    state is checkpointed to disk, so sessions are persistent and resumable.
+License: MIT + file LICENSE
+Encoding: UTF-8
+Depends:
+    R (>= 4.4.0)
+Imports:
+    cli,
+    coro,
+    ellmer (>= 0.4.0),
+    R6
+Suggests:
+    knitr,
+    rmarkdown,
+    testthat (>= 3.0.0)
+VignetteBuilder: knitr
+Config/testthat/edition: 3
+Roxygen: list(markdown = TRUE)
+RoxygenNote: 8.0.0

@@ -1,0 +1,6 @@
+^\.github$
+^\.atlas$
+^\.claude$
+^\.DS_Store$
+^.*\.Rproj$
+^\.Rproj\.user$
