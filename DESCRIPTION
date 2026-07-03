@@ -2,12 +2,18 @@ Package: Atlas
 Title: Automated Model Building with LLM Agents
 Version: 0.1.0
 Authors@R: person("Matt", "O'Reilly", email = "fermoymatt@gmail.com", role = c("aut", "cre"))
-Description: Builds statistical and machine learning models in R by driving an
-    agentic LLM loop ('ellmer'). The agent explores your data, proposes a plan
-    for your approval, fits and evaluates candidate models, and returns the
-    fitted models with a leaderboard and a report of how each was built. All
-    state is checkpointed to disk, so sessions are persistent and resumable.
+Description: Builds statistical and machine learning models by driving an
+    agentic large language model loop via 'ellmer'. The agent explores the
+    data, proposes a modelling plan for user approval, then writes and runs R
+    code to fit, compare, and refine candidate models. Domain knowledge can
+    be supplied as machine-verified constraints (mandatory variables,
+    monotone effects, custom checks), every step is checkpointed to disk so
+    sessions survive interruption and can be resumed, and the complete code
+    trail is returned for reproducibility. Data never leaves the local R
+    session; the model only sees column metadata and printed summaries.
 License: MIT + file LICENSE
+URL: https://github.com/mattyoreilly/Atlas
+BugReports: https://github.com/mattyoreilly/Atlas/issues
 Encoding: UTF-8
 Depends:
     R (>= 4.4.0)

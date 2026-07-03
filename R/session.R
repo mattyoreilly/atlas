@@ -88,6 +88,7 @@ AtlasSession <- R6::R6Class("AtlasSession",
       private$interject <- interject
       private$display <- match.arg(display)
       stopifnot(is.data.frame(data), is.character(outcome), length(outcome) == 1,
+                is.numeric(n_models), length(n_models) == 1, n_models >= 1,
                 is.numeric(patience), patience >= 1,
                 is.numeric(min_improve), min_improve >= 0, min_improve <= 1)
       if (!outcome %in% names(data)) {
@@ -182,6 +183,7 @@ AtlasSession <- R6::R6Class("AtlasSession",
     #' @param verbose As in `$build()`.
     #' @return The agent's reply (invisibly).
     tell = function(text, verbose = TRUE) {
+      stopifnot(is.character(text), length(text) == 1)
       private$verbose <- verbose
       if (verbose) {
         # stream narration as plain text; tools print their own blocks

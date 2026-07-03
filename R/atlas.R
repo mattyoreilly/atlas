@@ -63,15 +63,15 @@
 #' res <- atlas(mtcars, "mpg", n_models = 3,
 #'              goal = "prioritise interpretability",
 #'              constraints = list(
-#'                uses_wt   = con_uses("wt"),
-#'                mono_hp   = con_monotone("hp", "decreasing"),
-#'                no_leak   = "qsec is measured after the fact; never use it"
+#'                uses_wt = con_uses("wt"),
+#'                mono_hp = con_monotone("hp", "decreasing"),
+#'                no_leak = "qsec is measured after the fact; never use it"
 #'              ))
-#' res$constraints            # compliance table: model x constraint
-#' res                        # leaderboard + report
-#' res$models$lm              # a fitted model, ready for predict()
-#' cat(res$code, sep = "\n\n")
-#' res$session$tell("why did the random forest win?")
+#' res                          # leaderboard, constraint status, report
+#' res$constraints              # compliance table: model x constraint
+#' predict(res$models[[1]], head(mtcars))
+#' cat(res$code, sep = "\n\n")  # the full script the agent ran
+#' res$session$tell("why did the winning model win?")
 #' }
 #' @export
 atlas <- function(data, outcome, n_models = 3, goal = NULL,

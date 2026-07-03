@@ -43,6 +43,11 @@ constraint <- function(description, check = NULL) {
 #' @param var Column name that must contribute to predictions.
 #' @return An `atlas_constraint`.
 #' @examples
+#' # the check itself needs no LLM: it works on any fitted model
+#' uses_wt <- con_uses("wt")
+#' uses_wt$check(lm(mpg ~ wt + hp, mtcars), mtcars)  # TRUE
+#' uses_wt$check(lm(mpg ~ hp, mtcars), mtcars)       # a violation message
+#'
 #' \dontrun{
 #' atlas(mtcars, "mpg", constraints = list(uses_wt = con_uses("wt")))
 #' }
@@ -82,6 +87,10 @@ con_uses <- function(var) {
 #' @param n_grid,n_rows Size of the sweep grid and number of rows tested.
 #' @return An `atlas_constraint`.
 #' @examples
+#' mono <- con_monotone("wt", "decreasing")
+#' mono$check(lm(mpg ~ wt, mtcars), mtcars)          # TRUE: linear, negative
+#' con_monotone("wt", "increasing")$check(lm(mpg ~ wt, mtcars), mtcars)
+#'
 #' \dontrun{
 #' atlas(df, "price", constraints = list(
 #'   mono_sqft = con_monotone("sqft", "increasing")
@@ -139,7 +148,9 @@ con_monotone <- function(var, direction = c("increasing", "decreasing"),
 #' @export
 atlas_leakage_screen <- function(data, outcome, threshold = 0.95,
                                  max_rows = 5000) {
-  stopifnot(is.data.frame(data), outcome %in% names(data))
+  stopifnot(is.data.frame(data), outcome %in% names(data),
+            is.numeric(threshold), length(threshold) == 1,
+            threshold > 0, threshold <= 1)
   if (nrow(data) > max_rows) {
     data <- data[unique(round(seq(1, nrow(data), length.out = max_rows))), ,
                  drop = FALSE]

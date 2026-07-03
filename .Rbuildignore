@@ -1,6 +1,8 @@
 ^\.github$
 ^README\.Rmd$
 ^README\.html$
+^docs$
+^_pkgdown\.yml$
 ^\.atlas$
 ^\.claude$
 ^\.DS_Store$

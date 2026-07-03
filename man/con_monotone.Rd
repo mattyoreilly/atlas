@@ -37,6 +37,10 @@ monotone" — without forcing the variable in. Pair with \code{\link[=con_uses]{
 the variable must also be used.
 }
 \examples{
+mono <- con_monotone("wt", "decreasing")
+mono$check(lm(mpg ~ wt, mtcars), mtcars)          # TRUE: linear, negative
+con_monotone("wt", "increasing")$check(lm(mpg ~ wt, mtcars), mtcars)
+
 \dontrun{
 atlas(df, "price", constraints = list(
   mono_sqft = con_monotone("sqft", "increasing")

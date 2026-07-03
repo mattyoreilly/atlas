@@ -19,6 +19,11 @@ the variable. Works for any model that supports
 \verb{predict(model, newdata = <data.frame>)}.
 }
 \examples{
+# the check itself needs no LLM: it works on any fitted model
+uses_wt <- con_uses("wt")
+uses_wt$check(lm(mpg ~ wt + hp, mtcars), mtcars)  # TRUE
+uses_wt$check(lm(mpg ~ hp, mtcars), mtcars)       # a violation message
+
 \dontrun{
 atlas(mtcars, "mpg", constraints = list(uses_wt = con_uses("wt")))
 }
