@@ -1,0 +1,201 @@
+---
+title: "Domain knowledge and constraints"
+output: rmarkdown::html_vignette
+vignette: >
+  %\VignetteIndexEntry{Domain knowledge and constraints}
+  %\VignetteEngine{knitr::rmarkdown}
+  %\VignetteEncoding{UTF-8}
+---
+
+```{r, include = FALSE}
+knitr::opts_chunk$set(collapse = TRUE, comment = "#>", eval = FALSE)
+```
+
+`goal` carries soft preferences ("prioritise interpretability"); `constraints`
+carry hard requirements that must hold for every final model. Atlas enforces
+them three ways:
+
+1. **Up front** — constraints go into the agent's task as numbered hard
+   requirements, and the agent is told to design for them from the start
+   (e.g. pick monotone model forms rather than fixing violations later).
+2. **During the build** — the agent has a `check_constraints` tool to verify
+   itself before declaring the build done.
+3. **After the build** — Atlas independently runs every machine check against
+   every model in the results. Violations are sent back to the agent to
+   refit, up to `max_fix_rounds` times (default 2).
+
+## Three ways to write a constraint
+
+```{r}
+library(Atlas)
+
+res <- atlas(mtcars, "mpg", n_models = 2, constraints = list(
+  # 1. built-in helpers: machine-checked, model-agnostic
+  uses_wt = con_uses("wt"),
+  mono_hp = con_monotone("hp", "decreasing"),
+
+  # 2. custom check: any function(model, data) -> TRUE or a violation message
+  non_neg = constraint(
+    "predicted mpg must never be negative",
+    check = function(model, data) {
+      p <- predict(model, newdata = data)
+      if (all(p >= 0)) TRUE else "some predictions are negative"
+    }
+  ),
+
+  # 3. plain string: enforced via instructions only (passed = NA in the table)
+  no_leak = "qsec is measured after the fact; never use it as a predictor"
+))
+
+res$constraints
+#>   model constraint passed detail
+#>   ...     one row per model x machine-checked constraint ...
+```
+
+Anything that can be tested in code should get a `check`; strings are for
+rules only the agent can honour (like "don't use this column"). A check may
+also `stop()` — errors count as violations, with the message as the detail.
+
+## The built-in helpers
+
+Both are model-agnostic: they only require
+`predict(model, newdata = <data.frame>)` to work, which Atlas tells the agent
+every final model must support.
+
+**`con_uses(var)`** — the model must actually use a variable. The check
+scrambles (reverses) the column and compares predictions: if they don't move,
+the model isn't using it. No formula inspection, so it works for any model
+class and can't be fooled by wrappers.
+
+**`con_monotone(var, direction)`** — predictions must be monotone in a
+variable. ICE-style check: for a sample of observed rows, the variable is
+swept across its observed range with all other predictors held fixed, and
+every step of every sweep must move in the stated direction (within `tol`).
+
+Monotonicity is *non-strict*, so a model that ignores the variable passes
+trivially (flat is monotone). That makes it a conditional constraint — "if
+the model responds to `hp`, the effect must be decreasing" — without forcing
+the variable in:
+
+```{r}
+# monotone if present:
+constraints = list(mono_hp = con_monotone("hp", "decreasing"))
+
+# must be used AND monotone:
+constraints = list(uses_hp = con_uses("hp"),
+                   mono_hp = con_monotone("hp", "decreasing"))
+```
+
+## More custom check patterns
+
+```{r}
+# accuracy floor on a reference set
+min_r2 <- constraint(
+  "in-sample R-squared must be at least 0.7",
+  check = function(model, data) {
+    r2 <- cor(predict(model, newdata = data), data$mpg)^2
+    if (r2 >= 0.7) TRUE else sprintf("R-squared is %.2f", r2)
+  }
+)
+
+# bounded predictions
+in_range <- constraint(
+  "predictions must stay within the observed outcome range",
+  check = function(model, data) {
+    p <- predict(model, newdata = data)
+    if (all(p >= min(data$mpg) & p <= max(data$mpg))) TRUE
+    else "predictions leave the observed range"
+  }
+)
+
+# parity across a group
+fair_gap <- constraint(
+  "mean absolute error must be within 1 unit across am groups",
+  check = function(model, data) {
+    err <- abs(data$mpg - predict(model, newdata = data))
+    gap <- abs(diff(tapply(err, data$am, mean)))
+    if (gap <= 1) TRUE else sprintf("MAE gap across am is %.2f", gap)
+  }
+)
+```
+
+## Excluding features and catching leakage
+
+Constraints govern *how* variables are used; `exclude` removes them entirely
+— for columns that won't exist at prediction time in deployment, or that
+leak the outcome. Excluded columns are dropped from the data before the
+agent ever sees it, which is a stronger guarantee than any instruction:
+
+```{r}
+res <- atlas(claims, "severity",
+             exclude = c("settlement_amount",   # known after the outcome
+                         "claim_ref"))          # ID, useless in deployment
+```
+
+The surviving predictors are screened automatically with
+`atlas_leakage_screen()` — a fast univariate check: any column that alone
+explains almost all of the outcome (R-squared at/above 0.95) is flagged in
+the agent's brief, and the agent must confirm with you that it is genuinely
+available at prediction time before using it. You can also run the screen
+yourself before any modeling:
+
+```{r}
+atlas_leakage_screen(claims, "severity")
+#>            variable    r2 flagged
+#>   settlement_amount 0.998    TRUE
+#>            exposure 0.310   FALSE
+```
+
+In the app, the "Your data" panel lists every predictor as a checkbox —
+untick what deployment won't have — with flagged columns marked
+"possible leakage" in red.
+
+## Suggested by the agent
+
+You may forget a monotonicity constraint that's obviously right for the
+domain (price should not fall as floor area grows). Atlas is instructed to
+think about this during data exploration: when it believes a predictor should
+have a monotone effect, it includes the suggestion — variable, direction, and
+a one-line why — in the plan it asks you to approve. Each suggestion you
+approve is added via its `add_monotone_constraint` tool and becomes a hard,
+machine-checked constraint, verified and repaired exactly like one you passed
+yourself (and persisted, so it survives resumes).
+
+## Constraints from natural language
+
+`extract_constraints()` parses a plain-language brief into constraint
+objects, mapping to machine checks wherever it recognises a checkable rule:
+
+```{r}
+cons <- extract_constraints(
+  "weight must be in the model; predictions can never go up as horsepower
+   rises; qsec is measured after the fact, never use it",
+  data = mtcars
+)
+cons
+#> $uses_wt
+#> [machine-checked] The variable `wt` must be used as a predictor.
+#> $mono_hp
+#> [machine-checked] Predictions must be monotonically decreasing in `hp`.
+#> $no_qsec
+#> [prompt-only]     Never use qsec as a predictor.
+
+res <- atlas(mtcars, "mpg", constraints = cons)
+```
+
+The parse is a judgment call, so it returns the list for you to inspect and
+edit before the build. Passing `data` lets it validate column names; anything
+unmappable (unknown column, monotone rule without a direction) falls back to
+prompt-only enforcement instead of producing a broken check.
+
+## Reading the compliance table
+
+`res$constraints` has one row per model x machine-checked constraint, plus
+one row per prompt-only constraint:
+
+* `passed = TRUE/FALSE` — the check ran; `detail` explains failures.
+* `passed = NA` — prompt-only: enforced via instructions, not verifiable.
+
+`print(res)` shows an `UNMET CONSTRAINTS` block if anything failed after all
+repair rounds; a session's current state can be re-checked any time with
+`res$session$check()`.

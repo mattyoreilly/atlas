@@ -1,4 +1,6 @@
 ^\.github$
+^README\.Rmd$
+^README\.html$
 ^\.atlas$
 ^\.claude$
 ^\.DS_Store$

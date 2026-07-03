@@ -1,4 +1,0 @@
-"name","type","metric","value","notes"
-"polynomial","Polynomial Linear Model","RMSE",3.48830181689711,"Quadratic terms for wt & hp; captures non-linearity"
-"ridge_regression","Ridge Regression","RMSE",3.71053232856451,"Ridge penalty (λ=10); all predictors with shrinkage"
-"simple_linear","Simple Linear Regression","RMSE",4.17803247014793,"3 predictors: wt, carb, gear; highly interpretable"

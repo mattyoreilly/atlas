@@ -1,0 +1,15 @@
+# Atlas run directories (app/console build outputs: checkpoints, models, plots)
+.atlas/
+
+# R session junk
+.Rhistory
+.RData
+.Rproj.user/
+*.Rcheck/
+*.tar.gz
+
+# knitted README preview
+README.html
+
+# OS
+.DS_Store

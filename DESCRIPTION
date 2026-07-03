@@ -17,9 +17,18 @@ Imports:
     ellmer (>= 0.4.0),
     R6
 Suggests:
+    bslib (>= 0.6.0),
+    callr,
+    commonmark,
     knitr,
+    modelblueprint (>= 1.6.0),
     rmarkdown,
+    rstudioapi,
+    shiny,
+    tcltk,
     testthat (>= 3.0.0)
+Remotes:
+    mattyoreilly/modelblueprint
 VignetteBuilder: knitr
 Config/testthat/edition: 3
 Roxygen: list(markdown = TRUE)

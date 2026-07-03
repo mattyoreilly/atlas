@@ -51,16 +51,61 @@ AtlasSession <- R6::R6Class("AtlasSession",
     #'   every final model.
     #' @param chat An ellmer chat object. Defaults to
     #'   `ellmer::chat_anthropic()`. Any ellmer provider works.
-    #' @param dir Run directory. Defaults to `.atlas/<timestamp>`.
+    #' @param dir Run directory for checkpoints and all output (reports,
+    #'   validation plots, model bundles). Defaults to a timestamped folder
+    #'   under `getOption("atlas.dir", ".atlas")` — set
+    #'   `options(atlas.dir = "~/atlas-runs")` once to send every run to a
+    #'   location of your choosing, or pass `dir` explicitly per run.
+    #' @param on_ask Optional handler for the agent's questions:
+    #'   `function(question)` returning the user's answer as a string. When
+    #'   `NULL` (default), questions are asked in the console (interactive
+    #'   sessions) or answered with "use your best judgment" (scripts). Used
+    #'   by [atlas_app()] to route questions to the browser.
+    #' @param display How verbose progress is formatted: `"console"` (cli
+    #'   rules and colours) or `"markdown"` (fenced code blocks, for
+    #'   front-ends that render the stream as markdown, like [atlas_app()]).
+    #' @param patience Stopping rule: give up on an iteration (adding
+    #'   candidates, or a refinement loop) after this many consecutive
+    #'   attempts without improvement.
+    #' @param min_improve Stopping rule: an attempt only counts as an
+    #'   improvement if it beats the best validation metric so far by at
+    #'   least this relative fraction, between 0 and 1 (e.g. `0.05` for 5%).
+    #' @param exclude Columns the models must not use (not available at
+    #'   prediction time, or leakage). They are removed from the data before
+    #'   the agent ever sees it - the strongest possible guarantee.
+    #' @param interject Optional `function()` polled after every tool call.
+    #'   Return a string to interrupt the agent with a message mid-build (it
+    #'   is delivered with its next tool result, marked as highest priority);
+    #'   return `NULL` when there is nothing to say. Used by [atlas_app()]'s
+    #'   "Send now" box; front-ends typically read the message from a file or
+    #'   queue.
     initialize = function(data, outcome, n_models = 3, goal = NULL,
-                          constraints = NULL, chat = NULL, dir = NULL) {
-      stopifnot(is.data.frame(data), is.character(outcome), length(outcome) == 1)
+                          constraints = NULL, chat = NULL, dir = NULL,
+                          on_ask = NULL, display = c("console", "markdown"),
+                          patience = 3, min_improve = 0.05, exclude = NULL,
+                          interject = NULL) {
+      private$on_ask <- on_ask
+      private$interject <- interject
+      private$display <- match.arg(display)
+      stopifnot(is.data.frame(data), is.character(outcome), length(outcome) == 1,
+                is.numeric(patience), patience >= 1,
+                is.numeric(min_improve), min_improve >= 0, min_improve <= 1)
       if (!outcome %in% names(data)) {
         stop("outcome '", outcome, "' is not a column of `data`", call. = FALSE)
       }
+      if (outcome %in% exclude) {
+        stop("the outcome cannot be excluded", call. = FALSE)
+      }
+      data <- data[setdiff(names(data), exclude)]
+      leakage <- tryCatch(atlas_leakage_screen(data, outcome),
+                          error = function(e) NULL)
       private$meta <- list(outcome = outcome, n_models = n_models, goal = goal,
-                           constraints = normalize_constraints(constraints))
-      self$dir <- dir %||% file.path(".atlas", format(Sys.time(), "%Y%m%d-%H%M%S"))
+                           constraints = normalize_constraints(constraints),
+                           patience = patience, min_improve = min_improve,
+                           exclude = exclude, leakage = leakage)
+      self$dir <- path.expand(
+        dir %||% file.path(getOption("atlas.dir", ".atlas"),
+                           format(Sys.time(), "%Y%m%d-%H%M%S")))
       dir.create(self$dir, recursive = TRUE, showWarnings = FALSE)
       saveRDS(data, file.path(self$dir, "data.rds"))
       saveRDS(private$meta, file.path(self$dir, "meta.rds"))
@@ -68,8 +113,24 @@ AtlasSession <- R6::R6Class("AtlasSession",
       self$env <- new.env(parent = globalenv())
       self$env$data <- data
       self$chat <- chat %||% ellmer::chat_anthropic()
-      self$chat$set_system_prompt(
-        atlas_system_prompt(n_models, length(private$meta$constraints) > 0))
+      sys_prompt <- atlas_system_prompt(
+        n_models, length(private$meta$constraints) > 0,
+        patience = patience, min_improve = min_improve)
+      if (identical(private$display, "markdown")) {
+        sys_prompt <- paste0(
+          sys_prompt, "\n\nYour narration and code output are rendered as",
+          " markdown in a web app. Narrate in plain markdown (headings,",
+          " bold, lists) and never draw ASCII banners, rules, or box art",
+          " with cat() - they render badly.")
+      }
+      if (!is.null(interject)) {
+        sys_prompt <- paste0(
+          sys_prompt, "\n\nThe user can send you messages while you work;",
+          " they arrive inside tool results marked [MESSAGE FROM THE USER].",
+          " Treat them as your highest-priority instruction: acknowledge the",
+          " message and adjust your plan before doing anything else.")
+      }
+      self$chat$set_system_prompt(sys_prompt)
       private$register_tools()
     },
 
@@ -80,15 +141,28 @@ AtlasSession <- R6::R6Class("AtlasSession",
     #'   to `max_fix_rounds` times.
     #' @param verbose Show the agent's narration, code, and output live.
     #' @param max_fix_rounds How many constraint-repair rounds to allow.
+    #' @param refine After the winning algorithm is found (and constraints
+    #'   pass), iterate on its feature selection and engineering — one change
+    #'   per attempt, same validation scheme — until the session's stopping
+    #'   rules trigger (`patience` attempts without a `min_improve` gain).
+    #'   The refined model is added to the results alongside the original.
+    #' @param validate Produce reviewable validation output (gain,
+    #'   calibration, grouped residuals, one-ways, PDPs) for the winning
+    #'   model as interactive HTML files in the run directory. Needs the
+    #'   `modelblueprint` package; silently skipped when it isn't installed.
     #' @return An `atlas` results object (invisibly); see `$results()`.
-    build = function(verbose = TRUE, max_fix_rounds = 2) {
+    build = function(verbose = TRUE, max_fix_rounds = 2, refine = TRUE,
+                     validate = TRUE) {
       self$tell(atlas_task_prompt(self$env$data, private$meta),
                 verbose = verbose)
-      for (round in seq_len(max_fix_rounds)) {
-        fails <- self$check()
-        fails <- fails[!is.na(fails$passed) & !fails$passed, , drop = FALSE]
-        if (nrow(fails) == 0) break
-        self$tell(atlas_fix_prompt(fails), verbose = verbose)
+      private$fix_constraints(max_fix_rounds, verbose)
+      if (refine && !is.null(self$env$atlas_models)) {
+        self$tell(atlas_refine_prompt(private$meta), verbose = verbose)
+        private$fix_constraints(max_fix_rounds, verbose)
+      }
+      if (validate && !is.null(self$env$atlas_models) &&
+          requireNamespace("modelblueprint", quietly = TRUE)) {
+        self$tell(atlas_validation_prompt(self$dir), verbose = verbose)
       }
       invisible(self$results())
     },
@@ -173,27 +247,73 @@ AtlasSession <- R6::R6Class("AtlasSession",
   private = list(
     meta = NULL,
     last_report = NULL,
+
+    fix_constraints = function(max_fix_rounds, verbose) {
+      for (round in seq_len(max_fix_rounds)) {
+        fails <- self$check()
+        fails <- fails[!is.na(fails$passed) & !fails$passed, , drop = FALSE]
+        if (nrow(fails) == 0) break
+        self$tell(atlas_fix_prompt(fails), verbose = verbose)
+      }
+    },
     verbose = TRUE,
+    on_ask = NULL,
+    interject = NULL,
+    display = "console",
 
     register_tools = function() {
       self$chat$register_tool(ellmer::tool(
         function(code) {
           code <- trimws(code)
           self$code[[length(self$code) + 1]] <- code
+          md <- identical(private$display, "markdown")
           if (private$verbose) {
-            cat("\n")
-            cli::cli_rule(left = "R")
-            cat(code, "\n", sep = "")
-          }
-          out <- atlas_run_code(code, self$env)
-          self$checkpoint()
-          if (private$verbose) {
-            if (!identical(out, "(no output)")) {
-              cat(cli::col_grey(paste0("#> ", gsub("\n", "\n#> ", out))),
-                  "\n", sep = "")
+            if (md) {
+              cat("\n```r\n", code, "\n```\n", sep = "")
+            } else {
+              cat("\n")
+              cli::cli_rule(left = "R")
+              cat(code, "\n", sep = "")
             }
-            cli::cli_rule()
-            cat("\n")
+          }
+          segs <- atlas_run_segments(code, self$env)
+          out <- truncate_output(segments_to_text(segs))
+          self$checkpoint()
+          note <- if (!is.null(private$interject)) private$interject()
+          if (is.character(note) && length(note) == 1 && nzchar(note)) {
+            out <- paste0(
+              out, "\n\n[MESSAGE FROM THE USER - highest priority]: ", note,
+              "\nAcknowledge this message and adjust your work before",
+              " continuing.")
+            if (private$verbose) {
+              if (identical(private$display, "markdown")) {
+                cat("\n> **You interjected:** ",
+                    gsub("\n", "\n> ", note), "\n\n", sep = "")
+              } else {
+                cli::cli_rule(left = "user interjection")
+                cat(note, "\n")
+              }
+            }
+          }
+          if (private$verbose) {
+            if (md) {
+              for (s in segs) {
+                if (s$type == "table") {
+                  cat("\n", md_table(s$df), "\n", sep = "")
+                } else {
+                  txt <- paste(s$lines, collapse = "\n#> ")
+                  cat("\n```\n#> ", txt, "\n```\n", sep = "")
+                }
+              }
+              cat("\n")
+            } else {
+              if (!identical(out, "(no output)")) {
+                shown <- paste0("#> ", gsub("\n", "\n#> ", out))
+                cat(cli::col_grey(shown), "\n", sep = "")
+              }
+              cli::cli_rule()
+              cat("\n")
+            }
           }
           out
         },
@@ -207,7 +327,9 @@ AtlasSession <- R6::R6Class("AtlasSession",
       ))
       self$chat$register_tool(ellmer::tool(
         function(question) {
-          if (interactive()) {
+          if (!is.null(private$on_ask)) {
+            as.character(private$on_ask(question))
+          } else if (interactive()) {
             # cat the question first: readline() truncates long prompts
             cat("\n")
             cli::cli_rule(left = "atlas needs your input")
@@ -227,31 +349,59 @@ AtlasSession <- R6::R6Class("AtlasSession",
         ),
         arguments = list(question = ellmer::type_string("The question to ask"))
       ))
-      if (length(private$meta$constraints) > 0) {
-        self$chat$register_tool(ellmer::tool(
-          function() {
-            df <- self$check()
-            if (nrow(df) == 0) {
-              return("No models found. Create `atlas_models` first, then re-run this tool.")
-            }
-            if (private$verbose) {
+      self$chat$register_tool(ellmer::tool(
+        function(variable, direction) {
+          if (!variable %in% names(self$env$data)) {
+            return(paste0("`", variable, "` is not a column of the data."))
+          }
+          private$meta$constraints[[paste0("mono_", variable)]] <-
+            con_monotone(variable, direction)
+          saveRDS(private$meta, file.path(self$dir, "meta.rds"))
+          paste0("Added machine-checked constraint: predictions must be ",
+                 "monotonically ", direction, " in `", variable, "`.")
+        },
+        name = "add_monotone_constraint",
+        description = paste(
+          "Add a monotonicity constraint on a predictor. It becomes a hard,",
+          "machine-checked constraint verified against every final model.",
+          "Only call this after the user has approved the suggestion",
+          "(via ask_user)."
+        ),
+        arguments = list(
+          variable = ellmer::type_string("exact column name in `data`"),
+          direction = ellmer::type_enum(
+            c("increasing", "decreasing"),
+            "direction of the effect on predictions")
+        )
+      ))
+      self$chat$register_tool(ellmer::tool(
+        function() {
+          df <- self$check()
+          if (nrow(df) == 0) {
+            return(paste("Nothing to check yet - either no machine-checked",
+                         "constraints are set or `atlas_models` is empty."))
+          }
+          tbl <- md_table(df)
+          if (private$verbose) {
+            if (identical(private$display, "markdown")) {
+              cat("\n**Rules check**\n\n", tbl, "\n\n", sep = "")
+            } else {
               cat("\n")
               cli::cli_rule(left = "constraint check")
-              print(df, row.names = FALSE)
+              print_clean(df)
               cli::cli_rule()
               cat("\n")
             }
-            paste(utils::capture.output(print(df, row.names = FALSE)),
-                  collapse = "\n")
-          },
-          name = "check_constraints",
-          description = paste(
-            "Verify every machine-checked constraint against the models in",
-            "`atlas_models`. Run this after creating `atlas_models` and fix",
-            "any failures before finishing."
-          )
-        ))
-      }
+          }
+          tbl
+        },
+        name = "check_constraints",
+        description = paste(
+          "Verify every machine-checked constraint against the models in",
+          "`atlas_models`. Run this after creating `atlas_models` and fix",
+          "any failures before finishing."
+        )
+      ))
     },
 
     write_artifacts = function(reply) {
@@ -279,6 +429,8 @@ AtlasSession <- R6::R6Class("AtlasSession",
 #' @param dir A run directory created by a previous session.
 #' @param chat Optionally a fresh ellmer chat object (must be tool-capable);
 #'   defaults to `ellmer::chat_anthropic()`.
+#' @param ... Passed on to the [AtlasSession] constructor, e.g. `on_ask` or
+#'   `display` when resuming inside a front-end.
 #' @return An [AtlasSession].
 #' @examples
 #' \dontrun{
@@ -286,12 +438,14 @@ AtlasSession <- R6::R6Class("AtlasSession",
 #' s$tell("continue where you left off")
 #' }
 #' @export
-atlas_resume <- function(dir, chat = NULL) {
+atlas_resume <- function(dir, chat = NULL, ...) {
   meta <- readRDS(file.path(dir, "meta.rds"))
   data <- readRDS(file.path(dir, "data.rds"))
   s <- AtlasSession$new(data, meta$outcome, n_models = meta$n_models,
                         goal = meta$goal, constraints = meta$constraints,
-                        chat = chat, dir = dir)
+                        chat = chat, dir = dir,
+                        patience = meta$patience %||% 3,
+                        min_improve = meta$min_improve %||% 0.05, ...)
   code_path <- file.path(dir, "code.rds")
   if (file.exists(code_path)) {
     s$code <- readRDS(code_path)
@@ -304,57 +458,161 @@ atlas_resume <- function(dir, chat = NULL) {
   s
 }
 
-atlas_system_prompt <- function(n_models, has_constraints = FALSE) {
+atlas_system_prompt <- function(n_models, has_constraints = FALSE,
+                                patience = 3, min_improve = 0.05) {
   paste(
     "You are Atlas, an expert R statistician and ML engineer. You build models",
     "by writing R code and running it with the run_r_code tool. You can ask",
     "the user questions with the ask_user tool.",
     "",
-    sprintf("Your job: build %d distinct candidate models for the stated outcome.", n_models),
+    sprintf("Your job: build up to %d distinct candidate models for the stated outcome,", n_models),
+    "stopping earlier if the stopping rules trigger.",
+    "",
+    "Stopping rules (they apply to adding candidate models AND to any",
+    "iterative loop, such as refining features or tuning a model):",
+    "- An attempt counts as an improvement only if it beats the best",
+    sprintf("  validation metric so far by at least %s%% (relative).",
+            format(min_improve * 100)),
+    sprintf("- Stop the iteration after %d consecutive attempts without improvement.",
+            as.integer(patience)),
+    "- Always say in your report why you stopped (limit reached, converged, ...).",
     "",
     "Workflow:",
-    "1. Explore the data: dimensions, types, missingness, outcome distribution.",
-    "   Narrate what you find in 1-2 sentences.",
-    "2. Propose a plan: task type (regression/classification), validation",
-    "   scheme (holdout or CV, fixed seed), and the candidate model families.",
-    "   Get the plan approved with ask_user before fitting anything.",
-    "3. Fit and evaluate each candidate on held-out data. After each one,",
+    "1. Explore the data: dimensions, types, missingness, and the outcome's",
+    "   distribution (type, skew, zeros, bounds, outliers). Narrate briefly.",
+    "   Watch for target leakage: predictors flagged in the task, variables",
+    "   with a suspiciously perfect association with the outcome, and",
+    "   variables that could not be known at prediction time. Confirm",
+    "   suspicious ones with ask_user and drop confirmed leaks entirely.",
+    "2. Propose a plan DRIVEN BY the outcome's distribution: choose model",
+    "   families, link functions and any target transformation to match it",
+    "   (binary -> binomial; counts -> Poisson-family; skewed positive ->",
+    "   Gamma/Tweedie or log transform; symmetric continuous -> Gaussian),",
+    "   and state that reasoning. Include the validation scheme (holdout or",
+    "   CV, fixed seed). Also consider which predictors should have a",
+    "   monotone effect on the outcome as a matter of domain sense (e.g. a",
+    "   house's price should not fall as floor area grows); include any such",
+    "   suggestions, with direction and a one-line why, in the plan. Present",
+    "   the plan with ask_user, explicitly inviting approval, changes, or",
+    "   extra instructions. Incorporate whatever the user says - if they ask",
+    "   for substantial changes, restate the revised plan in one short",
+    "   paragraph before proceeding - and call add_monotone_constraint for",
+    "   each monotone suggestion the user approves. Never start fitting",
+    "   until the user has responded.",
+    "3. The user may also steer you mid-build (through ask_user answers or",
+    "   messages in tool results): treat instructions like 'focus on",
+    "   improvements' or 'change the feature engineering' as immediate",
+    "   course corrections, acknowledge them, and adjust the plan.",
+    "4. Fit and evaluate each candidate on held-out data. After each one,",
     "   narrate one line: model name, metric, value.",
-    "4. Refit each candidate on all rows for the final versions.",
-    "5. Create in the R session:",
+    "5. Refit each candidate on all rows for the final versions.",
+    "6. Create in the R session:",
     "   - `atlas_models`: named list of the final fitted models",
     "   - `atlas_leaderboard`: data.frame(name, type, metric, value, notes),",
     "     sorted best first, from the held-out evaluation",
-    "6. End with a markdown report: data summary; one section per model",
+    "7. End with a markdown report: data summary; one section per model",
     "   covering how it was built (preprocessing, features, tuning) and its",
     "   validation performance; a recommendation of which model to use.",
     "",
     "Rules:",
-    "- Never call install.packages(), read/write files, or access the network.",
+    "- Never call install.packages() or access the network. Never read or",
+    "  write files, with one exception: modelblueprint::model_validation()",
+    "  may write into the run directory when a task asks for it.",
     "- Prefer base R; check optional packages with requireNamespace() and fall",
     "  back gracefully if missing.",
     "- Keep each code chunk small; inspect output before continuing.",
     "- Use ask_user when a decision genuinely needs the user; otherwise proceed.",
+    "- Constraints can be added mid-session with add_monotone_constraint.",
+    "  Machine checks require `predict(model, newdata)` to work on a",
+    "  data.frame like `data`; make sure every model in `atlas_models`",
+    "  supports that. After creating `atlas_models`, run the check_constraints",
+    "  tool and fix any failures before finishing.",
     if (has_constraints) paste(
       "- The task lists hard constraints. Every final model must satisfy all",
       "\n  of them. Design for them from the start (e.g. sign-constrained or",
-      "\n  monotone model forms), don't bolt them on afterwards.",
-      "\n- Machine checks require `predict(model, newdata)` to work on a",
-      "\n  data.frame like `data`; make sure every model in `atlas_models`",
-      "\n  supports that. After creating `atlas_models`, run the",
-      "\n  check_constraints tool and fix any failures before finishing."),
+      "\n  monotone model forms), don't bolt them on afterwards."),
     sep = "\n"
+  )
+}
+
+atlas_refine_prompt <- function(meta) {
+  paste0(
+    "The candidates are built. Now refine the winner - the best model on ",
+    "`atlas_leaderboard` - to find the optimum version of it:\n",
+    "1. Iterate on feature selection and feature engineering, ONE change per ",
+    "attempt: add or drop predictors, transformations, interactions, ",
+    "binning, encodings. Refit and evaluate every attempt with the same ",
+    "validation scheme and metric as before, and narrate one line per ",
+    "attempt: what changed, the metric, the best so far.\n",
+    sprintf(paste0(
+      "2. Apply the stopping rules: stop after %d consecutive attempts ",
+      "without improvement; a gain under %s%% (relative) does not count as ",
+      "improvement.\n"),
+      as.integer(meta$patience), format(meta$min_improve * 100)),
+    "3. Hard constraints still apply to every attempt",
+    if (length(meta$constraints) > 0) " (verify with check_constraints)",
+    ".\n",
+    "4. When you stop: refit the best refined version on all rows, add it ",
+    "to `atlas_models` under the winner's name with '_refined' appended ",
+    "(keep the original too), add a matching `atlas_leaderboard` row, and ",
+    "summarise: attempts made, what improved, and why you stopped."
+  )
+}
+
+atlas_validation_prompt <- function(dir) {
+  paste0(
+    "The winning model now needs reviewable validation output, produced with ",
+    "the modelblueprint package (it is installed). This step is allowed to ",
+    "write files, but only via model_validation() into the run directory.\n\n",
+    "1. Wrap the winning model:\n",
+    "   mb <- modelblueprint::modelblueprint(\n",
+    "     model = <winning model>, train = <training data.frame>,\n",
+    "     test = <held-out data.frame>, y_name = <outcome column>,\n",
+    "     x_original_inputs = <character vector of predictor columns>,\n",
+    "     model_display_name = <winner's leaderboard name>,\n",
+    "     deploy_notes = <one-line description of how it was built>)\n",
+    "2. Run: modelblueprint::model_validation(mb, filepath = '", dir, "')\n",
+    "   This writes gain, calibration, grouped-residual, one-way and PDP",
+    " plots as interactive HTML files, AND saves the blueprint itself as a",
+    " portable <model_display_name>.tar.gz bundle in the same directory.\n",
+    "3. Do NOT create any other artifacts: no saveRDS(), no README files, no",
+    " helper scripts. The package's own workflow covers reloading and",
+    " interactive review.\n",
+    "4. Finish with a short review guide that uses these exact commands and",
+    " paths (they are relative to the R session's working directory, so they",
+    " work as written):\n",
+    "   - open the HTML files under '", dir, "/<model_display_name>/'\n",
+    "   - reload the blueprint:\n",
+    "     mb <- modelblueprint::loadmb('", dir,
+    "/<model_display_name>/<model_display_name>.tar.gz')\n",
+    "   - interactive dashboard: modelblueprint::mb_dashboard(mb)\n",
+    "   plus one paragraph on what to look at first and anything that needs",
+    " a reviewer's attention."
   )
 }
 
 atlas_task_prompt <- function(data, meta) {
   profile <- utils::capture.output(utils::str(data, list.len = 50))
   paste(
-    sprintf("Build %d models predicting `%s` from the other columns.",
+    sprintf("Build up to %d models predicting `%s` from the other columns.",
             meta$n_models, meta$outcome),
     sprintf("The data.frame `data` has %d rows and %d columns:",
             nrow(data), ncol(data)),
     paste(profile, collapse = "\n"),
+    if (length(meta$exclude) > 0) paste0(
+      "The user excluded these columns (unavailable at prediction time, or ",
+      "leakage risk); they have already been removed from `data`: ",
+      paste(meta$exclude, collapse = ", "), "."),
+    if (!is.null(meta$leakage) && any(meta$leakage$flagged)) paste0(
+      "Automated leakage screen - these predictors alone explain almost all ",
+      "of the outcome, which usually means leakage:\n",
+      paste(sprintf("- %s (univariate R-squared %.3f)",
+                    meta$leakage$variable[meta$leakage$flagged],
+                    meta$leakage$r2[meta$leakage$flagged]),
+            collapse = "\n"),
+      "\nConfirm with the user (ask_user) whether each is legitimately ",
+      "available at prediction time before relying on it; drop confirmed ",
+      "leaks entirely."),
     if (length(meta$constraints) > 0) paste0(
       "Hard constraints - every final model must satisfy ALL of these:\n",
       paste(sprintf("%d. [%s] %s%s",
@@ -385,12 +643,10 @@ atlas_fix_prompt <- function(fails) {
 
 # Execute one code chunk in `env`, returning printed output or the error.
 atlas_run_code <- function(code, env, max_chars = 8000) {
-  out <- tryCatch(
-    utils::capture.output(eval_chunk(code, env)),
-    error = function(e) paste("Error:", conditionMessage(e)),
-    warning = function(w) paste("Warning:", conditionMessage(w))
-  )
-  out <- paste(out, collapse = "\n")
+  truncate_output(segments_to_text(atlas_run_segments(code, env)), max_chars)
+}
+
+truncate_output <- function(out, max_chars = 8000) {
   if (out == "") out <- "(no output)"
   if (nchar(out) > max_chars) {
     out <- paste0(substr(out, 1, max_chars), "\n... [truncated]")
@@ -398,11 +654,91 @@ atlas_run_code <- function(code, env, max_chars = 8000) {
   out
 }
 
-# Evaluate all expressions, auto-printing visible results like the console.
-eval_chunk <- function(code, env) {
-  for (expr in parse(text = code)) {
-    res <- withVisible(eval(expr, env))
-    if (res$visible) print(res$value)
+# Evaluate a chunk, returning segments: list(type = "text", lines) for plain
+# printed output, list(type = "table", df) for tabular visible values - so
+# front-ends can render tables properly instead of as monospace dumps.
+atlas_run_segments <- function(code, env, max_rows = 30) {
+  segs <- list()
+  add_text <- function(lines) {
+    if (length(lines) && any(nzchar(lines))) {
+      segs[[length(segs) + 1]] <<- list(type = "text", lines = lines)
+    }
   }
-  invisible(NULL)
+  handled <- tryCatch({
+    for (expr in parse(text = code)) {
+      side <- utils::capture.output(res <- withVisible(eval(expr, env)))
+      add_text(side)
+      if (res$visible) {
+        tab <- as_table_df(res$value, max_rows)
+        if (is.null(tab)) {
+          add_text(utils::capture.output(print(res$value)))
+        } else {
+          segs[[length(segs) + 1]] <- list(type = "table", df = tab$df)
+          if (!is.null(tab$note)) add_text(tab$note)
+        }
+      }
+    }
+    TRUE
+  },
+  error = function(e) paste("Error:", conditionMessage(e)),
+  warning = function(w) paste("Warning:", conditionMessage(w)))
+  if (!isTRUE(handled)) segs <- list(list(type = "text", lines = handled))
+  coalesce_text(segs)
+}
+
+# Merge adjacent text segments so a chunk with many cat()/print() calls
+# renders as one block, not a stack of one-line fragments.
+coalesce_text <- function(segs) {
+  out <- list()
+  for (s in segs) {
+    n <- length(out)
+    if (identical(s$type, "text") && n > 0 && identical(out[[n]]$type, "text")) {
+      out[[n]]$lines <- c(out[[n]]$lines, s$lines)
+    } else {
+      out[[n + 1]] <- s
+    }
+  }
+  out
+}
+
+# Visible value -> data.frame for tabular rendering, or NULL to fall back to
+# print(). Covers data.frames, 1-D/2-D tables (incl. summary()), numeric
+# matrices, and named atomic vectors like colSums() results.
+as_table_df <- function(v, max_rows = 30) {
+  df <- if (is.data.frame(v)) {
+    if (is.character(attr(v, "row.names"))) {
+      cbind(row = rownames(v), v, row.names = NULL)
+    } else {
+      v
+    }
+  } else if (inherits(v, "table") && length(dim(v)) == 2) {
+    m <- as.data.frame.matrix(v)
+    cbind(" " = rownames(m), m, row.names = NULL)
+  } else if ((inherits(v, "table") || inherits(v, "summaryDefault") ||
+              is.atomic(v)) &&
+             length(dim(v)) <= 1 && !is.null(names(v)) &&
+             length(v) > 1 && length(v) <= 500) {
+    data.frame(name = names(v), value = unname(as.vector(v)))
+  } else if (is.matrix(v) && is.numeric(v)) {
+    m <- as.data.frame(v)
+    if (!is.null(rownames(v))) cbind(row = rownames(v), m, row.names = NULL)
+    else m
+  }
+  if (is.null(df) || ncol(df) == 0) return(NULL)
+  note <- NULL
+  if (nrow(df) > max_rows) {
+    note <- sprintf("... and %d more rows", nrow(df) - max_rows)
+    df <- utils::head(df, max_rows)
+  }
+  list(df = df, note = note)
+}
+
+# Flatten segments into the plain string the agent (and the console) sees;
+# tables become markdown pipe tables, which models read fine.
+segments_to_text <- function(segs) {
+  if (!length(segs)) return("")
+  paste(vapply(segs, function(s) {
+    if (s$type == "table") md_table(s$df)
+    else paste(s$lines, collapse = "\n")
+  }, character(1)), collapse = "\n")
 }

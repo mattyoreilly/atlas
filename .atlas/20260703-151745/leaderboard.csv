@@ -1,3 +1,0 @@
-"name","type","metric","value","notes"
-"gam","GAM","RMSE",2.58285001146171,"GAM with wt, hp (linear), s(disp), am; hp has negative coefficient"
-"linear_regression","Linear Regression","RMSE",3.17777085654356,"Linear model with wt, hp, am; hp has negative coefficient"

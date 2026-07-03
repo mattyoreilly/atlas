@@ -1,5 +1,12 @@
 # Constraint machinery: definition, normalization, and verification.
 
+test_that("constraint() validates its inputs", {
+  expect_error(constraint(1))
+  expect_error(constraint(c("two", "rules")))
+  expect_error(constraint("ok", check = "not a function"))
+  expect_s3_class(constraint("ok"), "atlas_constraint")
+})
+
 test_that("normalize_constraints accepts strings, constraints, and mixes", {
   n <- Atlas:::normalize_constraints
   expect_equal(n(NULL), list())
@@ -11,6 +18,11 @@ test_that("normalize_constraints accepts strings, constraints, and mixes", {
   expect_named(mixed, c("uses_wt", "constraint_2"))
   expect_true(is.function(mixed$uses_wt$check))
   expect_null(mixed$constraint_2$check)
+
+  # a bare constraint object needs no list()
+  bare <- n(con_uses("wt"))
+  expect_named(bare, "constraint_1")
+  expect_true(is.function(bare$constraint_1$check))
 })
 
 test_that("con_uses detects used and unused variables", {
@@ -55,6 +67,70 @@ test_that("verify_constraints reports per model, tolerates errors, keeps prompt-
 
   empty <- Atlas:::verify_constraints(list(), models, mtcars)
   expect_equal(nrow(empty), 0)
+
+  # checked constraints but no models yet: nothing to verify
+  no_models <- Atlas:::verify_constraints(
+    Atlas:::normalize_constraints(list(uses_wt = con_uses("wt"))), NULL, mtcars)
+  expect_equal(nrow(no_models), 0)
+})
+
+test_that("con_monotone copes with tiny data and unused variables", {
+  m <- lm(mpg ~ wt, mtcars)
+  expect_true(con_monotone("wt", "decreasing")$check(m, mtcars[1, ]))
+  # unused variable: flat response is (non-strictly) monotone both ways
+  expect_true(con_monotone("hp", "increasing")$check(m, mtcars))
+  expect_true(con_monotone("hp", "decreasing")$check(m, mtcars))
+})
+
+test_that("atlas_leakage_screen flags near-perfect predictors only", {
+  leaky <- mtcars
+  leaky$mpg_copy <- leaky$mpg * 2 + 1        # deterministic function of target
+  leaky$id <- as.factor(seq_len(nrow(leaky))) # high-cardinality: not assessable
+  scr <- atlas_leakage_screen(leaky, "mpg")
+
+  expect_true(scr$flagged[scr$variable == "mpg_copy"])
+  expect_false(scr$flagged[scr$variable == "wt"])   # strong but honest: ~0.75
+  expect_true(is.na(scr$r2[scr$variable == "id"]))
+  expect_false(scr$flagged[scr$variable == "id"])
+  expect_false("mpg" %in% scr$variable)
+
+  # threshold is respected
+  scr_loose <- atlas_leakage_screen(leaky, "mpg", threshold = 0.5)
+  expect_true(scr_loose$flagged[scr_loose$variable == "wt"])
+})
+
+test_that("excluded columns are removed before the agent sees the data", {
+  dir <- temp_dir()
+  leaky <- mtcars
+  leaky$post_hoc <- leaky$mpg + 1
+  s <- AtlasSession$new(leaky, "mpg", exclude = c("post_hoc", "qsec"),
+                        chat = real_chat(), dir = dir)
+
+  expect_false(any(c("post_hoc", "qsec") %in% names(s$env$data)))
+  expect_false("post_hoc" %in% names(readRDS(file.path(dir, "data.rds"))))
+  expect_equal(readRDS(file.path(dir, "meta.rds"))$exclude,
+               c("post_hoc", "qsec"))
+
+  prompt <- Atlas:::atlas_task_prompt(s$env$data,
+                                      readRDS(file.path(dir, "meta.rds")))
+  expect_match(prompt, "excluded these columns")
+  expect_match(prompt, "post_hoc, qsec")
+
+  expect_error(AtlasSession$new(mtcars, "mpg", exclude = "mpg",
+                                chat = real_chat(), dir = temp_dir()),
+               "outcome cannot be excluded")
+})
+
+test_that("leakage flags reach the task prompt", {
+  dir <- temp_dir()
+  leaky <- mtcars
+  leaky$mpg_copy <- leaky$mpg
+  s <- AtlasSession$new(leaky, "mpg", chat = real_chat(), dir = dir)
+  prompt <- Atlas:::atlas_task_prompt(s$env$data,
+                                      readRDS(file.path(dir, "meta.rds")))
+  expect_match(prompt, "leakage screen")
+  expect_match(prompt, "mpg_copy")
+  expect_match(prompt, "ask_user")
 })
 
 test_that("constraints_from_spec maps parsed specs to the right types", {
@@ -86,12 +162,9 @@ test_that("constraints_from_spec maps parsed specs to the right types", {
 })
 
 test_that("session wires constraints into prompts, tools, and results", {
-  dir <- file.path(tempdir(), paste0("atlas-c-", as.integer(stats::runif(1, 1, 1e9))))
-  if (Sys.getenv("ANTHROPIC_API_KEY") == "") {
-    Sys.setenv(ANTHROPIC_API_KEY = "test-key-no-network")
-  }
+  dir <- temp_dir()
   s <- AtlasSession$new(mtcars, "mpg", constraints = list(uses_wt = con_uses("wt")),
-                        chat = ellmer::chat_anthropic(), dir = dir)
+                        chat = real_chat(), dir = dir)
 
   expect_match(s$chat$get_system_prompt(), "check_constraints")
   expect_match(Atlas:::atlas_task_prompt(mtcars, readRDS(file.path(dir, "meta.rds"))),
@@ -106,10 +179,11 @@ test_that("session wires constraints into prompts, tools, and results", {
 
   s$env$atlas_leaderboard <- data.frame(name = "bad", metric = "rmse", value = 4)
   res <- s$results()
-  expect_output(print(res), "UNMET CONSTRAINTS")
+  expect_output(print(res), "does not use")  # failing detail is shown
 
   # constraints survive a resume
   s$checkpoint()
-  r <- atlas_resume(dir, chat = ellmer::chat_anthropic())
+  r <- atlas_resume(dir, chat = real_chat())
   expect_match(r$chat$get_system_prompt(), "check_constraints")
+  expect_true("check_constraints" %in% names(r$chat$get_tools()))
 })

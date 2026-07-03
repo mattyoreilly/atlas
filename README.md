@@ -1,2 +1,134 @@
+
 # Atlas
 
+Automated model building for R, driven by an agentic LLM
+([ellmer](https://ellmer.tidyverse.org)). Give Atlas a dataset and a
+target; it explores the data, proposes a modeling plan for your
+approval, then writes and runs R code to fit and evaluate candidate
+models — pausing for your input when a decision needs you. You get back
+fitted models, a leaderboard, the full code trail, and a report of how
+each model was built.
+
+**Your data stays on your machine.** The LLM sees a compact profile of
+the data and whatever output the agent prints — never the rows
+themselves. All model fitting happens locally in your R session.
+
+## Installation
+
+``` r
+# install.packages("pak")
+pak::local_install("path/to/Atlas")
+```
+
+Set an API key for your provider (default: `ANTHROPIC_API_KEY`). The
+persistent way: `usethis::edit_r_environ()`, add
+`ANTHROPIC_API_KEY=sk-ant-...`, save, restart R. Any tool-capable ellmer
+provider works via the `chat` argument.
+
+## No coding required
+
+`atlas_app()` opens a point-and-click version in the browser: upload a
+CSV, untick columns that won’t be available in deployment (with
+automatic leakage flags), choose what to predict, set the stopping
+rules, type your goals and rules in plain English, and click **Build
+models**. Progress streams live, the agent’s questions pop up as
+dialogs, and you can interrupt a running build any time with **“Tell
+Atlas something now”** — your message reaches the agent at its next
+step. When it finishes you get the leaderboard, rules check, validation
+plots, report, and the full R code — then an “Ask for more” box to keep
+refining the result.
+
+``` r
+Atlas::atlas_app()
+```
+
+## Quickstart
+
+``` r
+library(Atlas)
+
+res <- atlas(mtcars, outcome = "mpg",
+             n_models = 3,        # maximum; stops earlier once converged
+             patience = 3,        # stop after 3 attempts without improvement
+             min_improve = 0.05,  # <5% better doesn't count as improvement
+             goal = "prioritise interpretability")
+
+res              # leaderboard + report of how each model was built
+res$models       # named list of fitted models, ready for predict()
+res$code         # every line of R the agent ran
+```
+
+After the winning algorithm is found, Atlas keeps refining its feature
+selection and engineering (one change per attempt, same validation
+scheme) until the stopping rules say it has converged — the optimum
+lands in the results as `<winner>_refined`. The session stays live for
+anything further:
+
+``` r
+res$session$tell("why did the refined model beat the original?")
+res$session$tell("try a challenger that uses at most 3 predictors")
+```
+
+## Domain knowledge as enforced constraints
+
+Constraints are hard requirements, and machine-checked ones are
+*verified* against every final model — violations are sent back to the
+agent to fix:
+
+``` r
+res <- atlas(mtcars, "mpg", constraints = list(
+  uses_wt = con_uses("wt"),                   # must use wt
+  mono_hp = con_monotone("hp", "decreasing"), # monotone in hp
+  no_leak = "never use qsec; it is measured after the fact"
+))
+res$constraints   # compliance table: model x constraint
+```
+
+Or write the brief in plain language and let the LLM structure it:
+
+``` r
+cons <- extract_constraints(
+  "weight must be in the model; predictions can never go up as
+   horsepower rises", data = mtcars)
+```
+
+## Persistent sessions
+
+Every run checkpoints to its own directory: the data, each code chunk,
+the conversation, and the final artifacts (reports, validation plots,
+model bundles). By default runs land in `.atlas/<timestamp>` under the
+working directory — set `options(atlas.dir = "~/atlas-runs")` in your
+`.Rprofile` (or use the “Save results to” box in the app) to send them
+anywhere you like. Sessions survive crashes and restarts:
+
+``` r
+s <- atlas_resume(".atlas/20260703-141500")
+s$tell("continue where you left off")
+```
+
+## How big can the data go?
+
+Rows are cheap, columns are the limit that matters:
+
+- **Rows** — bounded by your machine, not the LLM: the data is never
+  sent to the model, and fitting happens locally. Hundreds of thousands
+  to millions of rows work; model fitting and constraint checks just
+  take longer.
+- **Columns** — the practical LLM-side limit. The agent reasons about
+  variables by name; up to a few dozen columns it does that well, into
+  the low hundreds it degrades. For wide data, pre-select features first
+  or say how to in `goal`.
+- **Cost & context** — a typical build is a few dozen LLM calls; cost
+  scales with the number of agent steps (and `max_fix_rounds` repairs),
+  not with data size. Start a fresh session per modeling task rather
+  than piling many follow-ups into one conversation.
+- **Disk** — the run directory stores a copy of the data (`data.rds`) so
+  sessions can be resumed cold; budget for that with very large
+  datasets.
+
+## Learn more
+
+- `vignette("atlas")` — getting started, API keys, what you get back
+- `vignette("constraints")` — domain knowledge, custom checks, NL
+  extraction
+- `vignette("sessions")` — persistence, resuming, follow-ups

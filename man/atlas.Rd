@@ -13,7 +13,12 @@ atlas(
   chat = NULL,
   dir = NULL,
   verbose = TRUE,
-  max_fix_rounds = 2
+  max_fix_rounds = 2,
+  patience = 3,
+  min_improve = 0.05,
+  refine = TRUE,
+  validate = TRUE,
+  exclude = NULL
 )
 }
 \arguments{
@@ -21,7 +26,9 @@ atlas(
 
 \item{outcome}{Name of the outcome column (string).}
 
-\item{n_models}{How many candidate models to build.}
+\item{n_models}{Maximum number of candidate models to build; the agent
+stops earlier when the stopping rules trigger (see \code{patience} and
+\code{min_improve}).}
 
 \item{goal}{Optional extra instructions (your own system-prompt additions),
 e.g. "prioritise interpretability" or "don't use tree-based models".}
@@ -37,13 +44,42 @@ element of the result.}
 \item{chat}{An ellmer chat object. Defaults to \code{ellmer::chat_anthropic()}
 (requires \code{ANTHROPIC_API_KEY}). Any tool-capable ellmer provider works.}
 
-\item{dir}{Run directory for checkpoints and artifacts. Defaults to
-\verb{.atlas/<timestamp>}.}
+\item{dir}{Run directory for checkpoints and all artifacts (reports,
+validation plots, model bundles). Defaults to a timestamped folder under
+\code{getOption("atlas.dir", ".atlas")}; set
+\code{options(atlas.dir = "~/atlas-runs")} in your \code{.Rprofile} to send every
+run somewhere of your choosing, or pass \code{dir} explicitly.}
 
 \item{verbose}{Stream the agent's narration to the console.}
 
 \item{max_fix_rounds}{How many automatic constraint-repair rounds to allow
 after the initial build.}
+
+\item{patience}{Stopping rule: give up on an iteration (adding candidate
+models, or a refinement loop like "keep improving the features") after
+this many consecutive attempts without improvement.}
+
+\item{min_improve}{Stopping rule: an attempt only counts as an improvement
+if it beats the best validation metric so far by at least this relative
+fraction, between 0 and 1 — e.g. \code{0.05} for 5\%.}
+
+\item{refine}{After the winning algorithm is found (and constraints pass),
+keep iterating on its feature selection and engineering — one change per
+attempt, same validation scheme — until the stopping rules trigger
+(\code{patience} consecutive attempts without a relative gain of at least
+\code{min_improve}). The refined model lands in the results as
+\verb{<winner>_refined}, alongside the original.}
+
+\item{validate}{Produce reviewable validation output for the winning model
+(gain, calibration, grouped residuals, one-ways, PDPs) as interactive
+HTML files in the run directory, via the \code{modelblueprint} package.
+Silently skipped when \code{modelblueprint} isn't installed.}
+
+\item{exclude}{Columns the models must not use — because they won't be
+available at prediction time in deployment, or they leak the outcome.
+They are removed from the data before the agent sees it. Predictors that
+survive are additionally screened with \code{\link[=atlas_leakage_screen]{atlas_leakage_screen()}}, and the
+agent is told to confirm anything suspicious with you before using it.}
 }
 \value{
 An object of class \code{atlas}: list with \code{models} (named list of

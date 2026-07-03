@@ -10,7 +10,20 @@
 #'
 #' @param data A data.frame.
 #' @param outcome Name of the outcome column (string).
-#' @param n_models How many candidate models to build.
+#' @param n_models Maximum number of candidate models to build; the agent
+#'   stops earlier when the stopping rules trigger (see `patience` and
+#'   `min_improve`).
+#' @param patience Stopping rule: give up on an iteration (adding candidate
+#'   models, or a refinement loop like "keep improving the features") after
+#'   this many consecutive attempts without improvement.
+#' @param min_improve Stopping rule: an attempt only counts as an improvement
+#'   if it beats the best validation metric so far by at least this relative
+#'   fraction, between 0 and 1 — e.g. `0.05` for 5%.
+#' @param exclude Columns the models must not use — because they won't be
+#'   available at prediction time in deployment, or they leak the outcome.
+#'   They are removed from the data before the agent sees it. Predictors that
+#'   survive are additionally screened with [atlas_leakage_screen()], and the
+#'   agent is told to confirm anything suspicious with you before using it.
 #' @param goal Optional extra instructions (your own system-prompt additions),
 #'   e.g. "prioritise interpretability" or "don't use tree-based models".
 #' @param constraints Domain knowledge as hard requirements: a list of plain
@@ -22,10 +35,23 @@
 #'   element of the result.
 #' @param max_fix_rounds How many automatic constraint-repair rounds to allow
 #'   after the initial build.
+#' @param refine After the winning algorithm is found (and constraints pass),
+#'   keep iterating on its feature selection and engineering — one change per
+#'   attempt, same validation scheme — until the stopping rules trigger
+#'   (`patience` consecutive attempts without a relative gain of at least
+#'   `min_improve`). The refined model lands in the results as
+#'   `<winner>_refined`, alongside the original.
+#' @param validate Produce reviewable validation output for the winning model
+#'   (gain, calibration, grouped residuals, one-ways, PDPs) as interactive
+#'   HTML files in the run directory, via the `modelblueprint` package.
+#'   Silently skipped when `modelblueprint` isn't installed.
 #' @param chat An ellmer chat object. Defaults to `ellmer::chat_anthropic()`
 #'   (requires `ANTHROPIC_API_KEY`). Any tool-capable ellmer provider works.
-#' @param dir Run directory for checkpoints and artifacts. Defaults to
-#'   `.atlas/<timestamp>`.
+#' @param dir Run directory for checkpoints and all artifacts (reports,
+#'   validation plots, model bundles). Defaults to a timestamped folder under
+#'   `getOption("atlas.dir", ".atlas")`; set
+#'   `options(atlas.dir = "~/atlas-runs")` in your `.Rprofile` to send every
+#'   run somewhere of your choosing, or pass `dir` explicitly.
 #' @param verbose Stream the agent's narration to the console.
 #' @return An object of class `atlas`: list with `models` (named list of
 #'   fitted models), `leaderboard` (data.frame of validation metrics),
@@ -50,30 +76,67 @@
 #' @export
 atlas <- function(data, outcome, n_models = 3, goal = NULL,
                   constraints = NULL, chat = NULL, dir = NULL,
-                  verbose = TRUE, max_fix_rounds = 2) {
+                  verbose = TRUE, max_fix_rounds = 2,
+                  patience = 3, min_improve = 0.05, refine = TRUE,
+                  validate = TRUE, exclude = NULL) {
   session <- AtlasSession$new(data, outcome, n_models = n_models, goal = goal,
-                              constraints = constraints, chat = chat, dir = dir)
-  session$build(verbose = verbose, max_fix_rounds = max_fix_rounds)
+                              constraints = constraints, chat = chat, dir = dir,
+                              patience = patience, min_improve = min_improve,
+                              exclude = exclude)
+  session$build(verbose = verbose, max_fix_rounds = max_fix_rounds,
+                refine = refine, validate = validate)
   session$results()
 }
 
 #' @export
 print.atlas <- function(x, ...) {
-  cat("<atlas>", x$dir, "\n")
-  if (is.data.frame(x$leaderboard)) {
+  cli::cli_rule(left = "atlas")
+  cat("run directory:", x$dir, "\n")
+  if (is.data.frame(x$leaderboard) && nrow(x$leaderboard) > 0) {
     cat("\n")
-    print(x$leaderboard)
+    cli::cli_rule(left = "leaderboard")
+    print_clean(x$leaderboard)
   }
   cst <- x$constraints
   if (is.data.frame(cst) && nrow(cst) > 0) {
     bad <- cst[!is.na(cst$passed) & !cst$passed, , drop = FALSE]
+    cat("\n")
     if (nrow(bad) > 0) {
-      cat("\nUNMET CONSTRAINTS:\n")
-      print(bad, row.names = FALSE)
+      cli::cli_alert_danger("Unmet constraints:")
+      print_clean(bad)
     } else {
-      cat("\nAll machine-checked constraints satisfied.\n")
+      cli::cli_alert_success("All machine-checked constraints satisfied.")
     }
   }
-  if (!is.null(x$report)) cat("\n", x$report, "\n", sep = "")
+  if (!is.null(x$report)) {
+    cat("\n")
+    cli::cli_rule(left = "report")
+    cat(x$report, "\n")
+  }
   invisible(x)
+}
+
+# Console table: rounded numerics, no row names.
+print_clean <- function(df, digits = 4) {
+  df <- as.data.frame(df)
+  num <- vapply(df, is.numeric, logical(1))
+  df[num] <- lapply(df[num], signif, digits)
+  print(df, row.names = FALSE, right = FALSE)
+  invisible(df)
+}
+
+# data.frame -> markdown pipe table (rounded numerics, NAs blank), for
+# streams that get rendered as markdown (the app log, agent tool results).
+md_table <- function(df, digits = 4) {
+  cells <- lapply(df, function(col) {
+    if (is.numeric(col)) col <- signif(col, digits)
+    out <- as.character(col)
+    out[is.na(out)] <- ""
+    gsub("|", "\\|", out, fixed = TRUE)
+  })
+  header <- paste0("| ", paste(names(df), collapse = " | "), " |")
+  sep <- paste0("|", paste(rep("---", ncol(df)), collapse = "|"), "|")
+  rows <- do.call(paste, c(cells, list(sep = " | ")))
+  paste(c(header, sep, if (length(rows)) paste0("| ", rows, " |")),
+        collapse = "\n")
 }

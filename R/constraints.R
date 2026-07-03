@@ -114,6 +114,54 @@ con_monotone <- function(var, direction = c("increasing", "decreasing"),
   )
 }
 
+#' Screen predictors for possible target leakage
+#'
+#' A quick, model-free screen: for each predictor, how much of the outcome
+#' does it explain on its own (R-squared of `lm(outcome ~ predictor)`, with
+#' factor outcomes coded to integers)? Near-perfect univariate fits usually
+#' mean the column is derived from the outcome or recorded after it - classic
+#' leakage. Used automatically by [atlas()] to warn the agent, and by
+#' [atlas_app()] to flag columns in the feature picker; also useful on its
+#' own before any modeling.
+#'
+#' @param data A data.frame.
+#' @param outcome Name of the outcome column.
+#' @param threshold Flag predictors with univariate R-squared at or above
+#'   this value.
+#' @param max_rows Screen at most this many rows (evenly spaced) for speed.
+#' @return A data.frame with `variable`, `r2`, and `flagged`. High-cardinality
+#'   factors (e.g. IDs) get `r2 = NA`: they can't be assessed this way, but
+#'   are usually unusable as predictors anyway.
+#' @examples
+#' leaky <- mtcars
+#' leaky$mpg_copy <- leaky$mpg * 2
+#' atlas_leakage_screen(leaky, "mpg")
+#' @export
+atlas_leakage_screen <- function(data, outcome, threshold = 0.95,
+                                 max_rows = 5000) {
+  stopifnot(is.data.frame(data), outcome %in% names(data))
+  if (nrow(data) > max_rows) {
+    data <- data[unique(round(seq(1, nrow(data), length.out = max_rows))), ,
+                 drop = FALSE]
+  }
+  y <- data[[outcome]]
+  if (!is.numeric(y)) y <- as.numeric(as.factor(y))
+  vars <- setdiff(names(data), outcome)
+  r2 <- vapply(vars, function(v) {
+    x <- data[[v]]
+    if (all(is.na(x))) return(NA_real_)
+    if (!is.numeric(x)) {
+      x <- as.factor(x)
+      if (nlevels(x) > min(50, nrow(data) / 2)) return(NA_real_)
+    }
+    # a perfect fit warns "summary may be unreliable" - that IS our signal
+    tryCatch(suppressWarnings(summary(stats::lm(y ~ x))$r.squared),
+             error = function(e) NA_real_)
+  }, numeric(1))
+  data.frame(variable = vars, r2 = round(r2, 4),
+             flagged = !is.na(r2) & r2 >= threshold, row.names = NULL)
+}
+
 #' Extract constraints from a natural-language brief
 #'
 #' Uses the LLM to parse free text into Atlas constraints, mapping to
@@ -177,6 +225,7 @@ extract_constraints <- function(text, data = NULL, chat = NULL) {
 # be tested offline. `spec` is a data.frame(name, type, variable, direction,
 # description) as returned by the structured extraction.
 constraints_from_spec <- function(spec, data = NULL) {
+  if (NROW(spec) == 0) return(list())
   out <- list()
   nms <- character()
   for (i in seq_len(NROW(spec))) {
@@ -199,9 +248,14 @@ constraints_from_spec <- function(spec, data = NULL) {
 }
 
 #' @export
+format.atlas_constraint <- function(x, ...) {
+  paste0(if (is.null(x$check)) "[prompt-only]     " else "[machine-checked] ",
+         x$description)
+}
+
+#' @export
 print.atlas_constraint <- function(x, ...) {
-  cat(if (is.null(x$check)) "[prompt-only]     " else "[machine-checked] ",
-      x$description, "\n", sep = "")
+  cat(format(x), "\n", sep = "")
   invisible(x)
 }
 
@@ -209,7 +263,11 @@ print.atlas_constraint <- function(x, ...) {
 # return a named list of atlas_constraint.
 normalize_constraints <- function(x) {
   if (is.null(x)) return(list())
-  if (inherits(x, "atlas_constraint") || !is.list(x)) x <- as.list(x)
+  if (inherits(x, "atlas_constraint")) {
+    x <- list(x)          # a bare constraint: wrap, don't explode its fields
+  } else if (!is.list(x)) {
+    x <- as.list(x)       # character vector -> list of strings
+  }
   x <- lapply(x, function(ci) {
     if (inherits(ci, "atlas_constraint")) ci else constraint(as.character(ci))
   })

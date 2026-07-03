@@ -4,13 +4,16 @@
 \alias{atlas_resume}
 \title{Resume a session from its run directory}
 \usage{
-atlas_resume(dir, chat = NULL)
+atlas_resume(dir, chat = NULL, ...)
 }
 \arguments{
 \item{dir}{A run directory created by a previous session.}
 
 \item{chat}{Optionally a fresh ellmer chat object (must be tool-capable);
 defaults to \code{ellmer::chat_anthropic()}.}
+
+\item{...}{Passed on to the \link{AtlasSession} constructor, e.g. \code{on_ask} or
+\code{display} when resuming inside a front-end.}
 }
 \value{
 An \link{AtlasSession}.

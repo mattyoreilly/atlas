@@ -72,7 +72,13 @@ s <- atlas_resume(".atlas/20260703-141500")
   goal = NULL,
   constraints = NULL,
   chat = NULL,
-  dir = NULL
+  dir = NULL,
+  on_ask = NULL,
+  display = c("console", "markdown"),
+  patience = 3,
+  min_improve = 0.05,
+  exclude = NULL,
+  interject = NULL
 )}
     \if{html}{\out{</div>}}
   }
@@ -90,7 +96,34 @@ strings and/or \code{\link[=constraint]{constraint()}} objects (see also \code{\
 every final model.}
       \item{\code{chat}}{An ellmer chat object. Defaults to
 \code{ellmer::chat_anthropic()}. Any ellmer provider works.}
-      \item{\code{dir}}{Run directory. Defaults to \verb{.atlas/<timestamp>}.}
+      \item{\code{dir}}{Run directory for checkpoints and all output (reports,
+validation plots, model bundles). Defaults to a timestamped folder
+under \code{getOption("atlas.dir", ".atlas")} — set
+\code{options(atlas.dir = "~/atlas-runs")} once to send every run to a
+location of your choosing, or pass \code{dir} explicitly per run.}
+      \item{\code{on_ask}}{Optional handler for the agent's questions:
+\verb{function(question)} returning the user's answer as a string. When
+\code{NULL} (default), questions are asked in the console (interactive
+sessions) or answered with "use your best judgment" (scripts). Used
+by \code{\link[=atlas_app]{atlas_app()}} to route questions to the browser.}
+      \item{\code{display}}{How verbose progress is formatted: \code{"console"} (cli
+rules and colours) or \code{"markdown"} (fenced code blocks, for
+front-ends that render the stream as markdown, like \code{\link[=atlas_app]{atlas_app()}}).}
+      \item{\code{patience}}{Stopping rule: give up on an iteration (adding
+candidates, or a refinement loop) after this many consecutive
+attempts without improvement.}
+      \item{\code{min_improve}}{Stopping rule: an attempt only counts as an
+improvement if it beats the best validation metric so far by at
+least this relative fraction, between 0 and 1 (e.g. \code{0.05} for 5\%).}
+      \item{\code{exclude}}{Columns the models must not use (not available at
+prediction time, or leakage). They are removed from the data before
+the agent ever sees it - the strongest possible guarantee.}
+      \item{\code{interject}}{Optional \verb{function()} polled after every tool call.
+Return a string to interrupt the agent with a message mid-build (it
+is delivered with its next tool result, marked as highest priority);
+return \code{NULL} when there is nothing to say. Used by \code{\link[=atlas_app]{atlas_app()}}'s
+"Send now" box; front-ends typically read the message from a file or
+queue.}
     }
     \if{html}{\out{</div>}}
   }
@@ -107,7 +140,12 @@ every final model; violations are sent back to the agent to fix, up
 to \code{max_fix_rounds} times.
   \subsection{Usage}{
     \if{html}{\out{<div class="r">}}
-    \preformatted{AtlasSession$build(verbose = TRUE, max_fix_rounds = 2)}
+    \preformatted{AtlasSession$build(
+  verbose = TRUE,
+  max_fix_rounds = 2,
+  refine = TRUE,
+  validate = TRUE
+)}
     \if{html}{\out{</div>}}
   }
   \subsection{Arguments}{
@@ -115,6 +153,15 @@ to \code{max_fix_rounds} times.
     \describe{
       \item{\code{verbose}}{Show the agent's narration, code, and output live.}
       \item{\code{max_fix_rounds}}{How many constraint-repair rounds to allow.}
+      \item{\code{refine}}{After the winning algorithm is found (and constraints
+pass), iterate on its feature selection and engineering — one change
+per attempt, same validation scheme — until the session's stopping
+rules trigger (\code{patience} attempts without a \code{min_improve} gain).
+The refined model is added to the results alongside the original.}
+      \item{\code{validate}}{Produce reviewable validation output (gain,
+calibration, grouped residuals, one-ways, PDPs) for the winning
+model as interactive HTML files in the run directory. Needs the
+\code{modelblueprint} package; silently skipped when it isn't installed.}
     }
     \if{html}{\out{</div>}}
   }

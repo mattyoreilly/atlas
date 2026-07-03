@@ -1,0 +1,124 @@
+---
+title: "Persistent sessions"
+output: rmarkdown::html_vignette
+vignette: >
+  %\VignetteIndexEntry{Persistent sessions}
+  %\VignetteEngine{knitr::rmarkdown}
+  %\VignetteEncoding{UTF-8}
+---
+
+```{r, include = FALSE}
+knitr::opts_chunk$set(collapse = TRUE, comment = "#>", eval = FALSE)
+```
+
+`atlas()` is a one-call wrapper around an `AtlasSession` — an R6 object that
+holds the conversation, the R environment the agent works in, and a run
+directory on disk. The session outlives the call: use it for follow-ups, and
+resume it after a crash or restart.
+
+## The session object
+
+```{r}
+library(Atlas)
+
+s <- AtlasSession$new(mtcars, outcome = "mpg", n_models = 3,
+                      goal = "prioritise interpretability")
+res <- s$build()                 # the full agentic loop
+s$tell("swap model 2 for a GAM") # follow-up in the same context
+s$check()                        # re-verify constraints right now
+s$results()                      # assemble a fresh results object
+```
+
+`res$session` from `atlas()` is the same thing — every result carries its
+live session, so `res$session$tell("why did model 1 win?")` continues the
+conversation with full memory of the build.
+
+Iterative follow-ups inherit the session's stopping rules (`patience`
+attempts without improvement; improvements under the `min_improve` fraction
+don't count), so "keep refining the features until it stops improving"
+terminates on its own:
+
+```{r}
+s <- AtlasSession$new(mtcars, "mpg", n_models = 3,   # n_models is a maximum
+                      patience = 3, min_improve = 0.05)  # 0.05 = 5%
+res <- s$build()
+s$tell("take the best model and refine its feature engineering until
+        performance stops improving")
+```
+
+In the app, the same thing is the "Ask for more" box that appears in the
+sidebar after a build finishes; it resumes the session in a fresh background
+process and streams into the Progress tab.
+
+## What's on disk
+
+Each session owns a run directory (default `.atlas/<timestamp>`, or pass
+`dir =`):
+
+| file              | contents                                             |
+|-------------------|------------------------------------------------------|
+| `data.rds`        | the training data, so a resume works cold            |
+| `meta.rds`        | outcome, n_models, goal, constraints                 |
+| `code.R`          | every code chunk the agent ran, human-readable       |
+| `code.rds`        | the same chunks, exactly as recorded (for replay)    |
+| `turns.rds`       | the full conversation                                |
+| `report.md`       | the agent's final report                             |
+| `leaderboard.csv` | validation metrics per model                         |
+| `models.rds`      | the fitted models                                    |
+
+Checkpoints are written after every tool call and every reply, so at most the
+in-flight step is lost to a crash. `code.R` doubles as the reproducibility
+artifact: it is plain R you can read, audit, or run without Atlas.
+
+## Resuming
+
+```{r}
+s <- atlas_resume(".atlas/20260703-141500")
+s$tell("continue where you left off")
+```
+
+Resume does not try to deserialize the working environment. It reloads the
+data, **replays the recorded code log** top to bottom (agent code is seeded,
+so this is exact), and restores the conversation turns — the agent comes back
+knowing everything it did, with all fitted objects rebuilt. The one thing to
+budget for: replay refits the models, so resuming a session whose models take
+minutes to fit takes those minutes again.
+
+## Interrupting a running build
+
+You don't have to wait for the agent to ask. In the app, a **"Tell Atlas
+something now"** box is available in the sidebar whenever a build is
+running: your message is delivered with the agent's next step, marked as its
+highest-priority instruction ("I forgot — CREDIT_GRADE is only available for
+existing customers"), and the agent acknowledges it before continuing. A
+message sent in the instant a build finishes is returned to you with a
+prompt to use "Ask for more" instead.
+
+In the console, interrupt with `Ctrl+C` / `Esc`, then resume with the new
+information — because every code chunk is checkpointed as it runs, the
+agent's work up to the interruption is preserved and replayed:
+
+```{r}
+res <- atlas(big_data, "claim_cost")   # Ctrl+C mid-build...
+s <- atlas_resume(".atlas/20260703-141500")
+s$tell("stop trying tree models; the deployment target only supports GLMs")
+```
+
+For programmatic front-ends, the underlying hook is the `interject`
+constructor argument: a `function()` polled after every tool call, returning
+a message or `NULL`. The app implements it as a file in the run directory.
+
+## Human-in-the-loop
+
+The agent has an `ask_user` tool. In an interactive R session it prints the
+question under an `── atlas needs your input ──` rule and blocks on the
+console — that's how plan approval works. In non-interactive contexts
+(`Rscript`, CI) the tool tells the agent to use its best judgment and record
+the decision in the final report, so scripted runs never hang.
+
+## Verbosity
+
+`verbose = TRUE` (default) streams the agent's narration, each code chunk
+under an `── R ──` rule, its output as `#>` lines, and constraint-check
+tables. `verbose = FALSE` runs silently; everything is still checkpointed to
+the run directory, so `report.md` and `code.R` tell the story afterwards.
