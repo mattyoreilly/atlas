@@ -146,10 +146,6 @@ atlas_leakage_screen(claims, "severity")
 #>            exposure 0.310   FALSE
 ```
 
-In the app, the "Your data" panel lists every predictor as a checkbox —
-untick what deployment won't have — with flagged columns marked
-"possible leakage" in red.
-
 ## Suggested by the agent
 
 You may forget a monotonicity constraint that's obviously right for the

@@ -60,27 +60,6 @@ full list. Any tool-capable provider works:
 res <- atlas(mtcars, "mpg", chat = ellmer::chat_openai(model = "gpt-5"))
 ```
 
-## No coding required
-
-If you (or the person you're handing this to) would rather not write R at
-all, launch the app:
-
-```{r}
-Atlas::atlas_app()
-```
-
-It opens in the browser: upload a CSV, pick the column to predict, optionally
-type goals and plain-English rules (turned into enforced constraints via
-`extract_constraints()`), and click **Build models**. Progress streams live,
-questions from the agent appear as pop-up dialogs, and the results tabs show
-the leaderboard, the rules check, the report, and the complete R code of the
-build. Everything is also saved to the run directory as usual, so an R user
-can pick the session up later with `atlas_resume()`.
-
-The app needs the `shiny` and `callr` packages
-(`install.packages(c("shiny", "callr"))`) and the same API key as the
-console workflow.
-
 ## One call
 
 ```{r}
@@ -137,8 +116,7 @@ package is installed, every build ends with a validation step (`validate =
 TRUE`, the default): the agent wraps the winning model in a `modelblueprint`
 and runs `model_validation()`, writing interactive Plotly HTML files — gain
 chart, predicted-vs-observed calibration, grouped residuals, one-way plots
-per feature, and PDPs — into the run directory for review. In the app these
-appear as clickable links in a "Validation plots" card on the Results tab.
+per feature, and PDPs — into the run directory for review.
 
 The plan the agent proposes is also required to be driven by the outcome's
 distribution — binary outcomes get binomial models, counts get

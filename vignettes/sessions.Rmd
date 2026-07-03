@@ -46,10 +46,6 @@ s$tell("take the best model and refine its feature engineering until
         performance stops improving")
 ```
 
-In the app, the same thing is the "Ask for more" box that appears in the
-sidebar after a build finishes; it resumes the session in a fresh background
-process and streams into the Progress tab.
-
 ## What's on disk
 
 Each session owns a run directory (default `.atlas/<timestamp>`, or pass
@@ -86,17 +82,10 @@ minutes to fit takes those minutes again.
 
 ## Interrupting a running build
 
-You don't have to wait for the agent to ask. In the app, a **"Tell Atlas
-something now"** box is available in the sidebar whenever a build is
-running: your message is delivered with the agent's next step, marked as its
-highest-priority instruction ("I forgot — CREDIT_GRADE is only available for
-existing customers"), and the agent acknowledges it before continuing. A
-message sent in the instant a build finishes is returned to you with a
-prompt to use "Ask for more" instead.
-
-In the console, interrupt with `Ctrl+C` / `Esc`, then resume with the new
-information — because every code chunk is checkpointed as it runs, the
-agent's work up to the interruption is preserved and replayed:
+You don't have to wait for the agent to ask. In the console, interrupt with
+`Ctrl+C` / `Esc`, then resume with the new information — because every code
+chunk is checkpointed as it runs, the agent's work up to the interruption is
+preserved and replayed:
 
 ```{r}
 res <- atlas(big_data, "claim_cost")   # Ctrl+C mid-build...
@@ -105,8 +94,10 @@ s$tell("stop trying tree models; the deployment target only supports GLMs")
 ```
 
 For programmatic front-ends, the underlying hook is the `interject`
-constructor argument: a `function()` polled after every tool call, returning
-a message or `NULL`. The app implements it as a file in the run directory.
+constructor argument: a `function()` polled after every tool call. Return a
+message to interrupt the agent (it is delivered with its next tool result,
+marked as the highest-priority instruction), or `NULL` when there is nothing
+to say.
 
 ## Human-in-the-loop
 

@@ -25,23 +25,6 @@ persistent way: `usethis::edit_r_environ()`, add
 `ANTHROPIC_API_KEY=sk-ant-...`, save, restart R. Any tool-capable ellmer
 provider works via the `chat` argument.
 
-## No coding required
-
-`atlas_app()` opens a point-and-click version in the browser: upload a
-CSV, untick columns that won’t be available in deployment (with
-automatic leakage flags), choose what to predict, set the stopping
-rules, type your goals and rules in plain English, and click **Build
-models**. Progress streams live, the agent’s questions pop up as
-dialogs, and you can interrupt a running build any time with **“Tell
-Atlas something now”** — your message reaches the agent at its next
-step. When it finishes you get the leaderboard, rules check, validation
-plots, report, and the full R code — then an “Ask for more” box to keep
-refining the result.
-
-``` r
-Atlas::atlas_app()
-```
-
 ## Quickstart
 
 ``` r
@@ -98,8 +81,8 @@ Every run checkpoints to its own directory: the data, each code chunk,
 the conversation, and the final artifacts (reports, validation plots,
 model bundles). By default runs land in `.atlas/<timestamp>` under the
 working directory — set `options(atlas.dir = "~/atlas-runs")` in your
-`.Rprofile` (or use the “Save results to” box in the app) to send them
-anywhere you like. Sessions survive crashes and restarts:
+`.Rprofile` to send them anywhere you like. Sessions survive crashes and
+restarts:
 
 ``` r
 s <- atlas_resume(".atlas/20260703-141500")
