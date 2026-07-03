@@ -11,142 +11,146 @@ vignette: >
 knitr::opts_chunk$set(collapse = TRUE, comment = "#>", eval = FALSE)
 ```
 
-Atlas hands your data to an LLM agent that explores it, proposes a modeling
-plan for your approval, then writes and runs R code to fit and evaluate
-candidate models — pausing in the console when a decision needs you. Chunks
-in this vignette are not evaluated at build time because they need an API
-key.
+Atlas automates the workmanlike part of modeling — explore, propose, fit,
+compare, refine, document — while keeping you in charge of every judgment
+call. An LLM agent does the work by writing and running R code in your
+session, narrating as it goes and pausing for your approval at the moments
+that matter.
 
-Your data is never uploaded: the LLM sees a compact profile (column names,
-types, dimensions) and whatever output the agent prints. All code runs
-locally in your R session.
+This vignette walks through one build end to end. Code chunks are not
+evaluated here because they need an API key.
 
-## Setting your API key
+Two facts worth internalising before the first run:
 
-Atlas talks to the LLM through ellmer, which reads the key from an
-environment variable — `ANTHROPIC_API_KEY` for the default provider. Without
-it you'll see:
+* **Your data never leaves your machine.** The agent receives a compact
+  profile — dimensions, column names and types — plus whatever output its
+  own code prints. Model fitting is ordinary local R.
+* **Everything is recorded.** Every code chunk the agent executes and every
+  conversational turn is checkpointed to a run directory as it happens.
+  The result of a build is not just models; it is a reproducible script.
 
-```
-Error in `anthropic_key()`:
-! Can't find env var `ANTHROPIC_API_KEY`.
-```
+## Setup
 
-The recommended, persistent way is to put it in your `.Renviron`:
+Atlas talks to the LLM through [ellmer](https://ellmer.tidyverse.org) and
+defaults to Anthropic's API, which reads a key from the `ANTHROPIC_API_KEY`
+environment variable. The tidy, persistent way to set it:
 
 ```{r}
 usethis::edit_r_environ()
 ```
 
-add this line (no quotes), save, then restart R:
+Add one line (no quotes), save, restart R:
 
 ```
 ANTHROPIC_API_KEY=sk-ant-...
 ```
 
-For a one-off session you can set it inline instead (don't save this in a
-script you share):
-
-```{r}
-Sys.setenv(ANTHROPIC_API_KEY = "sk-ant-...")
-```
-
-Other providers use their own variables, e.g. `OPENAI_API_KEY` for
-`ellmer::chat_openai()` — see the [ellmer provider
-docs](https://ellmer.tidyverse.org/reference/index.html#chatbots) for the
-full list. Any tool-capable provider works:
+Every tool-capable ellmer provider is a drop-in replacement — pass one via
+`chat`:
 
 ```{r}
 res <- atlas(mtcars, "mpg", chat = ellmer::chat_openai(model = "gpt-5"))
 ```
 
-## One call
+## One build, start to finish
 
 ```{r}
 library(Atlas)
 
-res <- atlas(mtcars, outcome = "mpg", n_models = 1,
+res <- atlas(mtcars, outcome = "mpg", n_models = 3,
              goal = "prioritise interpretability")
 ```
 
-The agent streams what it is doing — narration, each code chunk under an
-`── R ──` rule with its output as `#>` lines — and pauses in the console when
-it wants your approval of the plan or input on a decision.
+Here is the lifecycle that call runs, and where you come in:
+
+1.  **Explore.** The agent profiles the data: dimensions, types,
+    missingness, and the outcome's distribution. Predictors that alone
+    explain nearly all of the outcome are flagged as suspected target
+    leakage (see `atlas_leakage_screen()`) and must be confirmed with you
+    before the agent may use them.
+
+2.  **Plan — and stop for you.** The agent proposes candidate model
+    families *chosen to match the outcome's distribution* (binary outcome
+    → binomial; counts → Poisson-family; skewed positive → Gamma/Tweedie
+    or a log transform), a validation scheme with a fixed seed, and any
+    monotone effects it believes the domain implies. It then asks for your
+    approval in the console. This is a conversation, not a checkbox: answer
+    `yes`, or redirect — "drop the tree model, and don't use qsec" — and
+    the plan is revised before anything is fitted.
+
+3.  **Build.** Up to `n_models` candidates are fitted and compared on
+    held-out data, one narrated line per candidate.
+
+4.  **Refine.** The winner's feature selection and engineering are iterated
+    — one change per attempt, same validation scheme — until the stopping
+    rules call convergence. The refined model joins the results as
+    `<winner>_refined`, next to the original.
+
+5.  **Verify.** Machine-checked constraints (if you passed any) are tested
+    against every final model; violations go back to the agent for repair.
+    See `vignette("constraints")`.
+
+6.  **Document.** With the `modelblueprint` package installed, the winning
+    model gets a full validation workup — gain chart, calibration, grouped
+    residuals, one-way plots, PDPs — written to the run directory as
+    interactive HTML, alongside a portable model bundle.
+
+## Stopping rules
+
+`n_models` is a maximum, not a quota. Two numeric parameters decide when
+the agent should stop iterating, and they govern candidate building and
+refinement alike:
+
+```{r}
+res <- atlas(mtcars, "mpg",
+             n_models    = 5,     # at most five candidates
+             patience    = 3,     # stop after 3 attempts without improvement
+             min_improve = 0.05)  # gains under 5% (relative) don't count
+```
+
+The report always states *why* iteration stopped — limit reached or
+converged.
 
 ## What you get back
 
 ```{r}
-res                  # leaderboard + markdown report of how each model was built
-res$models           # named list of fitted models
+res                    # print: leaderboard, constraint status, report
+res$models             # named list of fitted models
 predict(res$models[[1]], head(mtcars))
-res$leaderboard      # validation metric per model, best first
-res$report           # markdown: how each model was built, recommendation
-cat(res$code, sep = "\n\n")   # every line of R the agent ran
-res$constraints      # compliance table, if you passed constraints
-res$session          # the live session, for follow-ups
+res$leaderboard        # validation metric per model, best first
+res$report             # markdown: how each model was built, and why
+res$constraints        # compliance table (if constraints were set)
+cat(res$code, sep = "\n\n")   # the full script the agent ran
+res$dir                # the run directory holding all of the above
 ```
 
-The session is the persistent part — follow up in the same context:
+One element deserves special mention: `res$session` is the live session
+object, with the full conversation still in context. Anything you would ask
+a colleague who just built these models, you can ask it:
 
 ```{r}
-res$session$tell("why did this model win?")
-res$session$tell("add another candidate using only 3 predictors")
+res$session$tell("why did the refined model beat the original?")
+res$session$tell("build one more candidate that uses at most 3 predictors")
 ```
 
-See `vignette("sessions")` for persistence, crash recovery, and resuming, and
-`vignette("constraints")` for passing domain knowledge as enforced
-constraints.
-
-## Refinement: from best algorithm to optimum model
-
-Finding the best algorithm is only half the job. By default (`refine =
-TRUE`), once the candidates are compared and constraints pass, Atlas takes
-the winner and iterates on its feature selection and engineering — one
-change per attempt (add/drop predictors, transformations, interactions,
-binning), refit, evaluate on the same validation scheme — until the stopping
-rules trigger: `patience` consecutive attempts without a relative gain of at
-least `min_improve`. The refined model is added to the results as
-`<winner>_refined` next to the original, constraints are re-verified against
-it, and the report says what improved and why iteration stopped.
-
-## Reviewable validation output
-
-If the [modelblueprint](https://mattyoreilly.github.io/modelblueprint/)
-package is installed, every build ends with a validation step (`validate =
-TRUE`, the default): the agent wraps the winning model in a `modelblueprint`
-and runs `model_validation()`, writing interactive Plotly HTML files — gain
-chart, predicted-vs-observed calibration, grouped residuals, one-way plots
-per feature, and PDPs — into the run directory for review.
-
-The plan the agent proposes is also required to be driven by the outcome's
-distribution — binary outcomes get binomial models, counts get
-Poisson-family, skewed positive targets get Gamma/Tweedie or a log transform
-— with the reasoning stated in the plan you approve.
+Sessions also survive R itself — see `vignette("sessions")` for resuming,
+crash recovery, and interrupting a build in progress.
 
 ## How big can the data be?
 
 Rows are cheap; columns are the limit that matters.
 
-* **Rows: bounded by your machine, not the LLM.** The data itself is never
-  sent to the model — only a profile and printed summaries — and all fitting
-  runs locally. A million rows is fine from Atlas's side; model fitting,
-  cross-validation, and constraint checks simply take as long as they would
-  if you ran them yourself. Tool output shown to the agent is capped (~8000
-  characters per chunk), so printing a huge object costs tokens but does not
-  explode.
-* **Columns: keep it double digits, low hundreds at most.** The agent
-  reasons about variables by name. The data profile it receives lists up to
-  50 columns; with a few dozen columns it can think about each one, and into
-  the hundreds it has to work with aggregates. For wide data (text features,
-  one-hot blocks, omics), pre-select features first — or tell it how to in
-  `goal` ("run a variance filter, then work with the top 30").
-* **Conversation length.** A typical build is 15–40 LLM steps, comfortably
-  inside the model's context window. Many follow-ups and repair rounds
-  accumulate, though — for a new modeling question, start a fresh
-  `atlas()` call instead of extending an old session forever.
-* **Cost scales with agent steps, not data size.** More candidate models,
-  more constraint repairs, and more follow-ups mean more LLM calls; more
-  rows don't.
-* **Disk.** The run directory keeps a copy of the data (`data.rds`) so
-  sessions resume cold; with very large datasets, point `dir =` somewhere
-  with room.
+* **Rows: bounded by your machine, not the LLM.** The data is never
+  uploaded, and printed tool output is capped (~8,000 characters per
+  chunk), so a million rows cost you fitting time, not tokens.
+* **Columns: double digits are ideal, low hundreds the practical ceiling.**
+  The agent reasons about variables by name; its data profile lists up to
+  50 columns. For wide data — one-hot blocks, text features, omics —
+  pre-select first, or tell it how in `goal` ("variance filter, then work
+  with the top 30").
+* **Cost scales with agent steps.** More candidates, more repair rounds,
+  and more follow-ups mean more LLM calls; more rows don't. A typical
+  build is a few dozen calls.
+* **Disk:** the run directory keeps a copy of the data so sessions resume
+  cold. Point `dir` (or `options(atlas.dir = )`) somewhere with room for
+  large datasets.
