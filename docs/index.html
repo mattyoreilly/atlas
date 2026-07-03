@@ -87,16 +87,9 @@
 <p>Set an API key for your provider (default: <code>ANTHROPIC_API_KEY</code>). The persistent way: <code><a href="https://usethis.r-lib.org/reference/edit.html" class="external-link">usethis::edit_r_environ()</a></code>, add <code>ANTHROPIC_API_KEY=sk-ant-...</code>, save, restart R. Any tool-capable ellmer provider works via the <code>chat</code> argument.</p>
 </div>
 <div class="section level2">
-<h2 id="no-coding-required">No coding required<a class="anchor" aria-label="anchor" href="#no-coding-required"></a>
-</h2>
-<p><code><a href="reference/atlas_app.html">atlas_app()</a></code> opens a point-and-click version in the browser: upload a CSV, untick columns that won’t be available in deployment (with automatic leakage flags), choose what to predict, set the stopping rules, type your goals and rules in plain English, and click <strong>Build models</strong>. Progress streams live, the agent’s questions pop up as dialogs, and you can interrupt a running build any time with <strong>“Tell Atlas something now”</strong> — your message reaches the agent at its next step. When it finishes you get the leaderboard, rules check, validation plots, report, and the full R code — then an “Ask for more” box to keep refining the result.</p>
-<div class="sourceCode" id="cb2"><pre class="downlit sourceCode r">
-<code class="sourceCode R"><span><span class="fu">Atlas</span><span class="fu">::</span><span class="fu"><a href="reference/atlas_app.html">atlas_app</a></span><span class="op">(</span><span class="op">)</span></span></code></pre></div>
-</div>
-<div class="section level2">
 <h2 id="quickstart">Quickstart<a class="anchor" aria-label="anchor" href="#quickstart"></a>
 </h2>
-<div class="sourceCode" id="cb3"><pre class="downlit sourceCode r">
+<div class="sourceCode" id="cb2"><pre class="downlit sourceCode r">
 <code class="sourceCode R"><span><span class="kw"><a href="https://rdrr.io/r/base/library.html" class="external-link">library</a></span><span class="op">(</span><span class="va">Atlas</span><span class="op">)</span></span>
 <span></span>
 <span><span class="va">res</span> <span class="op">&lt;-</span> <span class="fu"><a href="reference/atlas.html">atlas</a></span><span class="op">(</span><span class="va">mtcars</span>, outcome <span class="op">=</span> <span class="st">"mpg"</span>,</span>
@@ -109,7 +102,7 @@
 <span><span class="va">res</span><span class="op">$</span><span class="va">models</span>       <span class="co"># named list of fitted models, ready for predict()</span></span>
 <span><span class="va">res</span><span class="op">$</span><span class="va">code</span>         <span class="co"># every line of R the agent ran</span></span></code></pre></div>
 <p>After the winning algorithm is found, Atlas keeps refining its feature selection and engineering (one change per attempt, same validation scheme) until the stopping rules say it has converged — the optimum lands in the results as <code>&lt;winner&gt;_refined</code>. The session stays live for anything further:</p>
-<div class="sourceCode" id="cb4"><pre class="downlit sourceCode r">
+<div class="sourceCode" id="cb3"><pre class="downlit sourceCode r">
 <code class="sourceCode R"><span><span class="va">res</span><span class="op">$</span><span class="va">session</span><span class="op">$</span><span class="fu">tell</span><span class="op">(</span><span class="st">"why did the refined model beat the original?"</span><span class="op">)</span></span>
 <span><span class="va">res</span><span class="op">$</span><span class="va">session</span><span class="op">$</span><span class="fu">tell</span><span class="op">(</span><span class="st">"try a challenger that uses at most 3 predictors"</span><span class="op">)</span></span></code></pre></div>
 </div>
@@ -117,7 +110,7 @@
 <h2 id="domain-knowledge-as-enforced-constraints">Domain knowledge as enforced constraints<a class="anchor" aria-label="anchor" href="#domain-knowledge-as-enforced-constraints"></a>
 </h2>
 <p>Constraints are hard requirements, and machine-checked ones are <em>verified</em> against every final model — violations are sent back to the agent to fix:</p>
-<div class="sourceCode" id="cb5"><pre class="downlit sourceCode r">
+<div class="sourceCode" id="cb4"><pre class="downlit sourceCode r">
 <code class="sourceCode R"><span><span class="va">res</span> <span class="op">&lt;-</span> <span class="fu"><a href="reference/atlas.html">atlas</a></span><span class="op">(</span><span class="va">mtcars</span>, <span class="st">"mpg"</span>, constraints <span class="op">=</span> <span class="fu"><a href="https://rdrr.io/r/base/list.html" class="external-link">list</a></span><span class="op">(</span></span>
 <span>  uses_wt <span class="op">=</span> <span class="fu"><a href="reference/con_uses.html">con_uses</a></span><span class="op">(</span><span class="st">"wt"</span><span class="op">)</span>,                   <span class="co"># must use wt</span></span>
 <span>  mono_hp <span class="op">=</span> <span class="fu"><a href="reference/con_monotone.html">con_monotone</a></span><span class="op">(</span><span class="st">"hp"</span>, <span class="st">"decreasing"</span><span class="op">)</span>, <span class="co"># monotone in hp</span></span>
@@ -125,7 +118,7 @@
 <span><span class="op">)</span><span class="op">)</span></span>
 <span><span class="va">res</span><span class="op">$</span><span class="va">constraints</span>   <span class="co"># compliance table: model x constraint</span></span></code></pre></div>
 <p>Or write the brief in plain language and let the LLM structure it:</p>
-<div class="sourceCode" id="cb6"><pre class="downlit sourceCode r">
+<div class="sourceCode" id="cb5"><pre class="downlit sourceCode r">
 <code class="sourceCode R"><span><span class="va">cons</span> <span class="op">&lt;-</span> <span class="fu"><a href="reference/extract_constraints.html">extract_constraints</a></span><span class="op">(</span></span>
 <span>  <span class="st">"weight must be in the model; predictions can never go up as</span></span>
 <span><span class="st">   horsepower rises"</span>, data <span class="op">=</span> <span class="va">mtcars</span><span class="op">)</span></span></code></pre></div>
@@ -133,8 +126,8 @@
 <div class="section level2">
 <h2 id="persistent-sessions">Persistent sessions<a class="anchor" aria-label="anchor" href="#persistent-sessions"></a>
 </h2>
-<p>Every run checkpoints to its own directory: the data, each code chunk, the conversation, and the final artifacts (reports, validation plots, model bundles). By default runs land in <code>.atlas/&lt;timestamp&gt;</code> under the working directory — set <code>options(atlas.dir = "~/atlas-runs")</code> in your <code>.Rprofile</code> (or use the “Save results to” box in the app) to send them anywhere you like. Sessions survive crashes and restarts:</p>
-<div class="sourceCode" id="cb7"><pre class="downlit sourceCode r">
+<p>Every run checkpoints to its own directory: the data, each code chunk, the conversation, and the final artifacts (reports, validation plots, model bundles). By default runs land in <code>.atlas/&lt;timestamp&gt;</code> under the working directory — set <code>options(atlas.dir = "~/atlas-runs")</code> in your <code>.Rprofile</code> to send them anywhere you like. Sessions survive crashes and restarts:</p>
+<div class="sourceCode" id="cb6"><pre class="downlit sourceCode r">
 <code class="sourceCode R"><span><span class="va">s</span> <span class="op">&lt;-</span> <span class="fu"><a href="reference/atlas_resume.html">atlas_resume</a></span><span class="op">(</span><span class="st">".atlas/20260703-141500"</span><span class="op">)</span></span>
 <span><span class="va">s</span><span class="op">$</span><span class="fu">tell</span><span class="op">(</span><span class="st">"continue where you left off"</span><span class="op">)</span></span></code></pre></div>
 </div>

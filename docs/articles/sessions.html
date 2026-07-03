@@ -114,9 +114,6 @@ the features until it stops improving” terminates on its own:</p>
 <span><span class="va">res</span> <span class="op">&lt;-</span> <span class="va">s</span><span class="op">$</span><span class="fu">build</span><span class="op">(</span><span class="op">)</span></span>
 <span><span class="va">s</span><span class="op">$</span><span class="fu">tell</span><span class="op">(</span><span class="st">"take the best model and refine its feature engineering until</span></span>
 <span><span class="st">        performance stops improving"</span><span class="op">)</span></span></code></pre></div>
-<p>In the app, the same thing is the “Ask for more” box that appears in
-the sidebar after a build finishes; it resumes the session in a fresh
-background process and streams into the Progress tab.</p>
 </div>
 <div class="section level2">
 <h2 id="whats-on-disk">What’s on disk<a class="anchor" aria-label="anchor" href="#whats-on-disk"></a>
@@ -189,26 +186,21 @@ fit takes those minutes again.</p>
 <div class="section level2">
 <h2 id="interrupting-a-running-build">Interrupting a running build<a class="anchor" aria-label="anchor" href="#interrupting-a-running-build"></a>
 </h2>
-<p>You don’t have to wait for the agent to ask. In the app, a
-<strong>“Tell Atlas something now”</strong> box is available in the
-sidebar whenever a build is running: your message is delivered with the
-agent’s next step, marked as its highest-priority instruction (“I forgot
-— CREDIT_GRADE is only available for existing customers”), and the agent
-acknowledges it before continuing. A message sent in the instant a build
-finishes is returned to you with a prompt to use “Ask for more”
-instead.</p>
-<p>In the console, interrupt with <code>Ctrl+C</code> /
-<code>Esc</code>, then resume with the new information — because every
-code chunk is checkpointed as it runs, the agent’s work up to the
-interruption is preserved and replayed:</p>
+<p>You don’t have to wait for the agent to ask. In the console,
+interrupt with <code>Ctrl+C</code> / <code>Esc</code>, then resume with
+the new information — because every code chunk is checkpointed as it
+runs, the agent’s work up to the interruption is preserved and
+replayed:</p>
 <div class="sourceCode" id="cb4"><pre class="downlit sourceCode r">
 <code class="sourceCode R"><span><span class="va">res</span> <span class="op">&lt;-</span> <span class="fu"><a href="../reference/atlas.html">atlas</a></span><span class="op">(</span><span class="va">big_data</span>, <span class="st">"claim_cost"</span><span class="op">)</span>   <span class="co"># Ctrl+C mid-build...</span></span>
 <span><span class="va">s</span> <span class="op">&lt;-</span> <span class="fu"><a href="../reference/atlas_resume.html">atlas_resume</a></span><span class="op">(</span><span class="st">".atlas/20260703-141500"</span><span class="op">)</span></span>
 <span><span class="va">s</span><span class="op">$</span><span class="fu">tell</span><span class="op">(</span><span class="st">"stop trying tree models; the deployment target only supports GLMs"</span><span class="op">)</span></span></code></pre></div>
 <p>For programmatic front-ends, the underlying hook is the
 <code>interject</code> constructor argument: a <code>function()</code>
-polled after every tool call, returning a message or <code>NULL</code>.
-The app implements it as a file in the run directory.</p>
+polled after every tool call. Return a message to interrupt the agent
+(it is delivered with its next tool result, marked as the
+highest-priority instruction), or <code>NULL</code> when there is
+nothing to say.</p>
 </div>
 <div class="section level2">
 <h2 id="human-in-the-loop">Human-in-the-loop<a class="anchor" aria-label="anchor" href="#human-in-the-loop"></a>

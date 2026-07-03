@@ -307,9 +307,16 @@ AtlasSession <- R6::R6Class("AtlasSession",
               }
               cat("\n")
             } else {
-              if (!identical(out, "(no output)")) {
-                shown <- paste0("#> ", gsub("\n", "\n#> ", out))
-                cat(cli::col_grey(shown), "\n", sep = "")
+              # console: tables as classic aligned R output, never pipes
+              for (s in segs) {
+                txt <- if (s$type == "table") {
+                  paste(utils::capture.output(print_clean(s$df)),
+                        collapse = "\n")
+                } else {
+                  paste(s$lines, collapse = "\n")
+                }
+                cat(cli::col_grey(paste0("#> ", gsub("\n", "\n#> ", txt))),
+                    "\n", sep = "")
               }
               cli::cli_rule()
               cat("\n")
@@ -711,7 +718,9 @@ as_table_df <- function(v, max_rows = 30) {
     } else {
       v
     }
-  } else if (inherits(v, "table") && length(dim(v)) == 2) {
+  } else if (inherits(v, "table") && length(dim(v)) == 2 && is.numeric(v)) {
+    # numeric only: summary(data.frame) is a character "table" of padded
+    # strings that reads far better as plain print output
     m <- as.data.frame.matrix(v)
     cbind(" " = rownames(m), m, row.names = NULL)
   } else if ((inherits(v, "table") || inherits(v, "summaryDefault") ||
