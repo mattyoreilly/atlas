@@ -43,7 +43,16 @@ fixed, and predictions must move in the stated direction every time."><!-- mathj
       <a href="../articles/sessions.html">Persistent sessions</a>
     </li>
   </ul></li>
-      </ul><ul class="nav navbar-nav navbar-right"></ul></div><!--/.nav-collapse -->
+<li>
+  <a href="../news/index.html">Changelog</a>
+</li>
+      </ul><ul class="nav navbar-nav navbar-right"><li>
+  <a href="https://github.com/mattyoreilly/Atlas/" class="external-link">
+    <span class="fab fa-github fa-lg"></span>
+
+  </a>
+</li>
+      </ul></div><!--/.nav-collapse -->
   </div><!--/.container -->
 </div><!--/.navbar -->
 
@@ -53,7 +62,7 @@ fixed, and predictions must move in the stated direction every time."><!-- mathj
   <div class="col-md-9 contents">
     <div class="page-header">
     <h1>Constraint: predictions must be monotonic in a variable</h1>
-
+    <small class="dont-index">Source: <a href="https://github.com/mattyoreilly/Atlas/blob/HEAD/R/constraints.R" class="external-link"><code>R/constraints.R</code></a></small>
     <div class="hidden name"><code>con_monotone.Rd</code></div>
     </div>
 
@@ -108,7 +117,13 @@ the variable must also be used.</p>
 
     <div id="ref-examples">
     <h2>Examples</h2>
-    <div class="sourceCode"><pre class="sourceCode r"><code><span class="r-in"><span><span class="kw">if</span> <span class="op">(</span><span class="cn">FALSE</span><span class="op">)</span> <span class="op">{</span> <span class="co"># \dontrun{</span></span></span>
+    <div class="sourceCode"><pre class="sourceCode r"><code><span class="r-in"><span><span class="va">mono</span> <span class="op">&lt;-</span> <span class="fu">con_monotone</span><span class="op">(</span><span class="st">"wt"</span>, <span class="st">"decreasing"</span><span class="op">)</span></span></span>
+<span class="r-in"><span><span class="va">mono</span><span class="op">$</span><span class="fu">check</span><span class="op">(</span><span class="fu"><a href="https://rdrr.io/r/stats/lm.html" class="external-link">lm</a></span><span class="op">(</span><span class="va">mpg</span> <span class="op">~</span> <span class="va">wt</span>, <span class="va">mtcars</span><span class="op">)</span>, <span class="va">mtcars</span><span class="op">)</span>          <span class="co"># TRUE: linear, negative</span></span></span>
+<span class="r-out co"><span class="r-pr">#&gt;</span> [1] TRUE</span>
+<span class="r-in"><span><span class="fu">con_monotone</span><span class="op">(</span><span class="st">"wt"</span>, <span class="st">"increasing"</span><span class="op">)</span><span class="op">$</span><span class="fu">check</span><span class="op">(</span><span class="fu"><a href="https://rdrr.io/r/stats/lm.html" class="external-link">lm</a></span><span class="op">(</span><span class="va">mpg</span> <span class="op">~</span> <span class="va">wt</span>, <span class="va">mtcars</span><span class="op">)</span>, <span class="va">mtcars</span><span class="op">)</span></span></span>
+<span class="r-out co"><span class="r-pr">#&gt;</span> [1] "predictions are not monotonically increasing in `wt` (violated with other predictors held at row 1's values)"</span>
+<span class="r-in"><span></span></span>
+<span class="r-in"><span><span class="kw">if</span> <span class="op">(</span><span class="cn">FALSE</span><span class="op">)</span> <span class="op">{</span> <span class="co"># \dontrun{</span></span></span>
 <span class="r-in"><span><span class="fu"><a href="atlas.html">atlas</a></span><span class="op">(</span><span class="va">df</span>, <span class="st">"price"</span>, constraints <span class="op">=</span> <span class="fu"><a href="https://rdrr.io/r/base/list.html" class="external-link">list</a></span><span class="op">(</span></span></span>
 <span class="r-in"><span>  mono_sqft <span class="op">=</span> <span class="fu">con_monotone</span><span class="op">(</span><span class="st">"sqft"</span>, <span class="st">"increasing"</span><span class="op">)</span></span></span>
 <span class="r-in"><span><span class="op">)</span><span class="op">)</span></span></span>

@@ -47,7 +47,16 @@ picked up with atlas_resume()."><!-- mathjax --><script src="https://cdnjs.cloud
       <a href="../articles/sessions.html">Persistent sessions</a>
     </li>
   </ul></li>
-      </ul><ul class="nav navbar-nav navbar-right"></ul></div><!--/.nav-collapse -->
+<li>
+  <a href="../news/index.html">Changelog</a>
+</li>
+      </ul><ul class="nav navbar-nav navbar-right"><li>
+  <a href="https://github.com/mattyoreilly/Atlas/" class="external-link">
+    <span class="fab fa-github fa-lg"></span>
+
+  </a>
+</li>
+      </ul></div><!--/.nav-collapse -->
   </div><!--/.container -->
 </div><!--/.navbar -->
 
@@ -57,7 +66,7 @@ picked up with atlas_resume()."><!-- mathjax --><script src="https://cdnjs.cloud
   <div class="col-md-9 contents">
     <div class="page-header">
     <h1>Build models automatically with an LLM agent</h1>
-
+    <small class="dont-index">Source: <a href="https://github.com/mattyoreilly/Atlas/blob/HEAD/R/atlas.R" class="external-link"><code>R/atlas.R</code></a></small>
     <div class="hidden name"><code>atlas.Rd</code></div>
     </div>
 
@@ -196,15 +205,15 @@ follow-ups via <code>$tell()</code>).</p>
 <span class="r-in"><span><span class="va">res</span> <span class="op">&lt;-</span> <span class="fu">atlas</span><span class="op">(</span><span class="va">mtcars</span>, <span class="st">"mpg"</span>, n_models <span class="op">=</span> <span class="fl">3</span>,</span></span>
 <span class="r-in"><span>             goal <span class="op">=</span> <span class="st">"prioritise interpretability"</span>,</span></span>
 <span class="r-in"><span>             constraints <span class="op">=</span> <span class="fu"><a href="https://rdrr.io/r/base/list.html" class="external-link">list</a></span><span class="op">(</span></span></span>
-<span class="r-in"><span>               uses_wt   <span class="op">=</span> <span class="fu"><a href="con_uses.html">con_uses</a></span><span class="op">(</span><span class="st">"wt"</span><span class="op">)</span>,</span></span>
-<span class="r-in"><span>               mono_hp   <span class="op">=</span> <span class="fu"><a href="con_monotone.html">con_monotone</a></span><span class="op">(</span><span class="st">"hp"</span>, <span class="st">"decreasing"</span><span class="op">)</span>,</span></span>
-<span class="r-in"><span>               no_leak   <span class="op">=</span> <span class="st">"qsec is measured after the fact; never use it"</span></span></span>
+<span class="r-in"><span>               uses_wt <span class="op">=</span> <span class="fu"><a href="con_uses.html">con_uses</a></span><span class="op">(</span><span class="st">"wt"</span><span class="op">)</span>,</span></span>
+<span class="r-in"><span>               mono_hp <span class="op">=</span> <span class="fu"><a href="con_monotone.html">con_monotone</a></span><span class="op">(</span><span class="st">"hp"</span>, <span class="st">"decreasing"</span><span class="op">)</span>,</span></span>
+<span class="r-in"><span>               no_leak <span class="op">=</span> <span class="st">"qsec is measured after the fact; never use it"</span></span></span>
 <span class="r-in"><span>             <span class="op">)</span><span class="op">)</span></span></span>
-<span class="r-in"><span><span class="va">res</span><span class="op">$</span><span class="va">constraints</span>            <span class="co"># compliance table: model x constraint</span></span></span>
-<span class="r-in"><span><span class="va">res</span>                        <span class="co"># leaderboard + report</span></span></span>
-<span class="r-in"><span><span class="va">res</span><span class="op">$</span><span class="va">models</span><span class="op">$</span><span class="va">lm</span>              <span class="co"># a fitted model, ready for predict()</span></span></span>
-<span class="r-in"><span><span class="fu"><a href="https://rdrr.io/r/base/cat.html" class="external-link">cat</a></span><span class="op">(</span><span class="va">res</span><span class="op">$</span><span class="va">code</span>, sep <span class="op">=</span> <span class="st">"\n\n"</span><span class="op">)</span></span></span>
-<span class="r-in"><span><span class="va">res</span><span class="op">$</span><span class="va">session</span><span class="op">$</span><span class="fu">tell</span><span class="op">(</span><span class="st">"why did the random forest win?"</span><span class="op">)</span></span></span>
+<span class="r-in"><span><span class="va">res</span>                          <span class="co"># leaderboard, constraint status, report</span></span></span>
+<span class="r-in"><span><span class="va">res</span><span class="op">$</span><span class="va">constraints</span>              <span class="co"># compliance table: model x constraint</span></span></span>
+<span class="r-in"><span><span class="fu"><a href="https://rdrr.io/r/stats/predict.html" class="external-link">predict</a></span><span class="op">(</span><span class="va">res</span><span class="op">$</span><span class="va">models</span><span class="op">[[</span><span class="fl">1</span><span class="op">]</span><span class="op">]</span>, <span class="fu"><a href="https://rdrr.io/r/utils/head.html" class="external-link">head</a></span><span class="op">(</span><span class="va">mtcars</span><span class="op">)</span><span class="op">)</span></span></span>
+<span class="r-in"><span><span class="fu"><a href="https://rdrr.io/r/base/cat.html" class="external-link">cat</a></span><span class="op">(</span><span class="va">res</span><span class="op">$</span><span class="va">code</span>, sep <span class="op">=</span> <span class="st">"\n\n"</span><span class="op">)</span>  <span class="co"># the full script the agent ran</span></span></span>
+<span class="r-in"><span><span class="va">res</span><span class="op">$</span><span class="va">session</span><span class="op">$</span><span class="fu">tell</span><span class="op">(</span><span class="st">"why did the winning model win?"</span><span class="op">)</span></span></span>
 <span class="r-in"><span><span class="op">}</span> <span class="co"># }</span></span></span>
 </code></pre></div>
     </div>

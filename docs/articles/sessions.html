@@ -59,8 +59,18 @@
     </li>
   </ul>
 </li>
+<li>
+  <a href="../news/index.html">Changelog</a>
+</li>
       </ul>
-<ul class="nav navbar-nav navbar-right"></ul>
+<ul class="nav navbar-nav navbar-right">
+<li>
+  <a href="https://github.com/mattyoreilly/Atlas/" class="external-link">
+    <span class="fab fa-github fa-lg"></span>
+
+  </a>
+</li>
+      </ul>
 </div>
 <!--/.nav-collapse -->
   </div>
@@ -76,7 +86,7 @@
       <h1 data-toc-skip>Persistent sessions</h1>
             
       
-
+      <small class="dont-index">Source: <a href="https://github.com/mattyoreilly/Atlas/blob/HEAD/vignettes/sessions.Rmd" class="external-link"><code>vignettes/sessions.Rmd</code></a></small>
       <div class="hidden name"><code>sessions.Rmd</code></div>
 
     </div>
@@ -98,7 +108,7 @@ models included — then restoring the conversation.</p>
 <code>AtlasSession</code> (R6), which holds the ellmer conversation, the
 R environment the agent works in, and the run directory:</p>
 <div class="sourceCode" id="cb1"><pre class="downlit sourceCode r">
-<code class="sourceCode R"><span><span class="kw"><a href="https://rdrr.io/r/base/library.html" class="external-link">library</a></span><span class="op">(</span><span class="va">Atlas</span><span class="op">)</span></span>
+<code class="sourceCode R"><span><span class="kw"><a href="https://rdrr.io/r/base/library.html" class="external-link">library</a></span><span class="op">(</span><span class="va"><a href="https://github.com/mattyoreilly/Atlas" class="external-link">Atlas</a></span><span class="op">)</span></span>
 <span></span>
 <span><span class="va">s</span> <span class="op">&lt;-</span> <span class="va"><a href="../reference/AtlasSession.html">AtlasSession</a></span><span class="op">$</span><span class="fu">new</span><span class="op">(</span><span class="va">mtcars</span>, outcome <span class="op">=</span> <span class="st">"mpg"</span>, n_models <span class="op">=</span> <span class="fl">3</span>,</span>
 <span>                      goal <span class="op">=</span> <span class="st">"prioritise interpretability"</span><span class="op">)</span></span>
