@@ -26,11 +26,16 @@ Three ideas separate Atlas from “ask a chatbot for model code”:
 
 ## Installation
 
-Atlas is not yet on CRAN. Install from a local checkout or GitHub:
+Atlas is not yet on CRAN. Install the development version from
+[GitHub](https://github.com/mattyoreilly/Atlas):
 
 ``` r
 # install.packages("pak")
-pak::local_install("path/to/Atlas")
+pak::pkg_install("mattyoreilly/Atlas")
+
+# or
+# install.packages("remotes")
+remotes::install_github("mattyoreilly/Atlas")
 ```
 
 You also need an API key for an LLM provider. Atlas defaults to
