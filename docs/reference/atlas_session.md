@@ -41,6 +41,13 @@ when it needs a decision (interactive sessions only).
   Held-out test rows (when `test_prop > 0`); never placed in the agent's
   environment.
 
+- `tally`:
+
+  Live experiment tally: one row per recorded attempt (`attempt`,
+  `name`, `metric`, `value`, `best`, `verdict`), kept by atlas from the
+  agent's `record_attempt` calls and persisted to `tally.csv` in the run
+  directory.
+
 ## Methods
 
 ### Public methods
@@ -54,6 +61,8 @@ when it needs a decision (interactive sessions only).
 - [`atlas_session$tell()`](#method-atlas_session-tell)
 
 - [`atlas_session$results()`](#method-atlas_session-results)
+
+- [`atlas_session$add_budget()`](#method-atlas_session-add_budget)
 
 - [`atlas_session$compact()`](#method-atlas_session-compact)
 
@@ -321,6 +330,29 @@ full code trail.
 An object of class `atlas`: list with `models` (named list of fitted
 models), `leaderboard` (data.frame of validation metrics), `report`
 (markdown), `code`, `dir`, and `session` (this object).
+
+------------------------------------------------------------------------
+
+### `atlas_session$add_budget()`
+
+Grant the agent more mechanical budget. The hard caps (`max_steps`,
+`max_runtime`) protect unattended runs, but they also bind follow-up
+`$tell()` calls on a finished session - top the budget up explicitly
+when you want more work done: `res$session$add_budget(steps = 25)`.
+
+#### Usage
+
+    atlas_session$add_budget(steps = 0, seconds = 0)
+
+#### Arguments
+
+- `steps`:
+
+  Additional code executions to allow.
+
+- `seconds`:
+
+  Additional wall-clock seconds to allow.
 
 ------------------------------------------------------------------------
 

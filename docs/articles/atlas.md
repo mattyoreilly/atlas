@@ -118,15 +118,21 @@ agent must finalise from what it has.
 
 ``` r
 
-res                    # print: leaderboard, constraint status, report
+res                    # print: leaderboards, tally, constraints, report, cost
 res$models             # named list of fitted models
 predict(res$models[[1]], head(mtcars))
 res$leaderboard        # validation metric per model, best first
+res$tally              # every attempt the agent made: KEEP / DISCARD
 res$report             # markdown: how each model was built, and why
 res$constraints        # compliance table (if constraints were set)
 cat(res$code, sep = "\n\n")   # the full script the agent ran
 res$dir                # the run directory holding all of the above
 ```
+
+`res$tally` is the run’s ledger: one row per model or tweak the agent
+evaluated, scored live by atlas against the best so far and answered
+with a mechanical KEEP or DISCARD verdict - changes that didn’t improve
+on current performance were reverted on the spot.
 
 One element deserves special mention: `res$session` is the live session
 object, with the full conversation still in context. Anything you would
@@ -136,6 +142,8 @@ ask a colleague who just built these models, you can ask it:
 
 res$session$tell("why did the refined model beat the original?")
 res$session$tell("build one more candidate that uses at most 3 predictors")
+
+res <- res$session$results()   # results are snapshots: refresh after changes
 ```
 
 Sessions also survive R itself - see

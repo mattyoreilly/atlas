@@ -51,7 +51,10 @@ res$dir # run directory: report.md, code.R, tally.csv, plots
 cat(res$code, sep = "\n\n") # the full script the agent wrote
 
 # The session is still live - ask it anything:
-res$session$tell("why did the winning model win?")
+res$session$add_budget(steps = 25)
+res$session$tell("remove the worst predictor and re-evaluate")
+
+res$session$tell("Remove the worst predictor")
 
 # 5. Autonomous variant ----------------------------------------------------
 # No approval gate; generous exploration; hard budgets. Run it, walk away.

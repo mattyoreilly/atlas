@@ -173,21 +173,28 @@ has.</p>
 <h2 id="what-you-get-back">What you get back<a class="anchor" aria-label="anchor" href="#what-you-get-back"></a>
 </h2>
 <div class="sourceCode" id="cb6"><pre class="downlit sourceCode r">
-<code class="sourceCode R"><span><span class="va">res</span>                    <span class="co"># print: leaderboard, constraint status, report</span></span>
+<code class="sourceCode R"><span><span class="va">res</span>                    <span class="co"># print: leaderboards, tally, constraints, report, cost</span></span>
 <span><span class="va">res</span><span class="op">$</span><span class="va">models</span>             <span class="co"># named list of fitted models</span></span>
 <span><span class="fu"><a href="https://rdrr.io/r/stats/predict.html" class="external-link">predict</a></span><span class="op">(</span><span class="va">res</span><span class="op">$</span><span class="va">models</span><span class="op">[[</span><span class="fl">1</span><span class="op">]</span><span class="op">]</span>, <span class="fu"><a href="https://rdrr.io/r/utils/head.html" class="external-link">head</a></span><span class="op">(</span><span class="va">mtcars</span><span class="op">)</span><span class="op">)</span></span>
 <span><span class="va">res</span><span class="op">$</span><span class="va">leaderboard</span>        <span class="co"># validation metric per model, best first</span></span>
+<span><span class="va">res</span><span class="op">$</span><span class="va">tally</span>              <span class="co"># every attempt the agent made: KEEP / DISCARD</span></span>
 <span><span class="va">res</span><span class="op">$</span><span class="va">report</span>             <span class="co"># markdown: how each model was built, and why</span></span>
 <span><span class="va">res</span><span class="op">$</span><span class="va">constraints</span>        <span class="co"># compliance table (if constraints were set)</span></span>
 <span><span class="fu"><a href="https://rdrr.io/r/base/cat.html" class="external-link">cat</a></span><span class="op">(</span><span class="va">res</span><span class="op">$</span><span class="va">code</span>, sep <span class="op">=</span> <span class="st">"\n\n"</span><span class="op">)</span>   <span class="co"># the full script the agent ran</span></span>
 <span><span class="va">res</span><span class="op">$</span><span class="va">dir</span>                <span class="co"># the run directory holding all of the above</span></span></code></pre></div>
+<p><code>res$tally</code> is the run’s ledger: one row per model or
+tweak the agent evaluated, scored live by atlas against the best so far
+and answered with a mechanical KEEP or DISCARD verdict - changes that
+didn’t improve on current performance were reverted on the spot.</p>
 <p>One element deserves special mention: <code>res$session</code> is the
 live session object, with the full conversation still in context.
 Anything you would ask a colleague who just built these models, you can
 ask it:</p>
 <div class="sourceCode" id="cb7"><pre class="downlit sourceCode r">
 <code class="sourceCode R"><span><span class="va">res</span><span class="op">$</span><span class="va">session</span><span class="op">$</span><span class="fu">tell</span><span class="op">(</span><span class="st">"why did the refined model beat the original?"</span><span class="op">)</span></span>
-<span><span class="va">res</span><span class="op">$</span><span class="va">session</span><span class="op">$</span><span class="fu">tell</span><span class="op">(</span><span class="st">"build one more candidate that uses at most 3 predictors"</span><span class="op">)</span></span></code></pre></div>
+<span><span class="va">res</span><span class="op">$</span><span class="va">session</span><span class="op">$</span><span class="fu">tell</span><span class="op">(</span><span class="st">"build one more candidate that uses at most 3 predictors"</span><span class="op">)</span></span>
+<span></span>
+<span><span class="va">res</span> <span class="op">&lt;-</span> <span class="va">res</span><span class="op">$</span><span class="va">session</span><span class="op">$</span><span class="fu">results</span><span class="op">(</span><span class="op">)</span>   <span class="co"># results are snapshots: refresh after changes</span></span></code></pre></div>
 <p>Sessions also survive R itself - see
 <code><a href="../articles/sessions.html">vignette("sessions")</a></code> for resuming, crash recovery, and
 interrupting a build in progress. For fully unattended runs - no

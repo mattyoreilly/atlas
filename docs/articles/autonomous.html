@@ -134,6 +134,48 @@ already gone.</p>
 <p>Use them together: generous statistical rules so the agent explores,
 and a mechanical ceiling so “overnight” can’t become “over the
 weekend”.</p>
+<p>The budget binds the whole session, follow-up <code>$tell()</code>
+calls included - a finished run with nothing left in the tank will
+refuse further work. That is deliberate (a cap you can talk your way
+past is not a cap), and the remedy is explicit: grant more, then
+continue.</p>
+<div class="sourceCode" id="cb2"><pre class="downlit sourceCode r">
+<code class="sourceCode R"><span><span class="va">res</span><span class="op">$</span><span class="va">session</span><span class="op">$</span><span class="fu">add_budget</span><span class="op">(</span>steps <span class="op">=</span> <span class="fl">25</span><span class="op">)</span></span>
+<span><span class="va">res</span><span class="op">$</span><span class="va">session</span><span class="op">$</span><span class="fu">tell</span><span class="op">(</span><span class="st">"remove the worst predictor and re-evaluate"</span><span class="op">)</span></span></code></pre></div>
+</div>
+<div class="section level2">
+<h2 id="the-live-tally">The live tally<a class="anchor" aria-label="anchor" href="#the-live-tally"></a>
+</h2>
+<p>Every model and every tweak is scored the moment it is evaluated. The
+agent must call its <code>record_attempt</code> tool after each attempt,
+and atlas - not the agent - keeps the ledger: it compares the result
+against the best so far (using <code>stopping_tolerance</code>), prints
+a one-line tally, and returns a mechanical verdict the agent is
+instructed to obey:</p>
+<pre><code>[tally #7 | gbm_depth3: rmse = 2.412 | best: glm_gamma = 2.380 | flat: 2/8 -&gt; DISCARD]</code></pre>
+<p><code>KEEP</code> means the attempt is the new best;
+<code>DISCARD</code> means revert the change completely - if it didn’t
+improve on current performance, it goes. The flat-attempt counting is
+mechanical too: when <code>stopping_rounds</code> consecutive attempts
+fail to improve, the verdict says so in capitals and tells the agent to
+stop iterating and finalise. The full tally is persisted to
+<code>tally.csv</code> as it grows, returned as <code>res$tally</code>,
+and summarised by <code>print(res)</code>.</p>
+</div>
+<div class="section level2">
+<h2 id="steering-a-run-that-is-already-going">Steering a run that is already going<a class="anchor" aria-label="anchor" href="#steering-a-run-that-is-already-going"></a>
+</h2>
+<p>Autonomy doesn’t mean you can’t speak. From any other R session or
+terminal, send the run a message:</p>
+<div class="sourceCode" id="cb4"><pre class="downlit sourceCode r">
+<code class="sourceCode R"><span><span class="fu"><a href="../reference/atlas_message.html">atlas_message</a></span><span class="op">(</span><span class="st">"~/runs/severity"</span>,</span>
+<span>              <span class="st">"focus on the gamma GLM family; stop trying trees"</span><span class="op">)</span></span></code></pre></div>
+<p>It is delivered with the agent’s next code execution, marked as its
+highest-priority instruction; the agent acknowledges it and adjusts
+course. “Focus on gradient boosting”, “change the feature engineering
+for income”, “stop tuning and finalise” - anything you would say over a
+colleague’s shoulder. Messages that arrive after the run has finished
+are never picked up; resume and <code>$tell()</code> instead.</p>
 </div>
 <div class="section level2">
 <h2 id="the-protected-test-set">The protected test set<a class="anchor" aria-label="anchor" href="#the-protected-test-set"></a>
@@ -153,7 +195,7 @@ lands in <code>res$test_leaderboard</code>, in
 beside the agent’s own validation leaderboard - so you can see at a
 glance whether the agent’s sense of “better” survived contact with
 unseen data.</p>
-<div class="sourceCode" id="cb2"><pre class="downlit sourceCode r">
+<div class="sourceCode" id="cb5"><pre class="downlit sourceCode r">
 <code class="sourceCode R"><span><span class="va">res</span><span class="op">$</span><span class="va">leaderboard</span>        <span class="co"># what the agent believed, from its validation scheme</span></span>
 <span><span class="va">res</span><span class="op">$</span><span class="va">test_leaderboard</span>   <span class="co"># what the held-out data says; this one is final</span></span></code></pre></div>
 </div>
@@ -182,7 +224,7 @@ session’s cumulative dollar <code>cost</code>, and
 </h2>
 <p>Everything is checkpointed as it happens, so an unattended run can be
 inspected - or picked up - at any time from another R session:</p>
-<div class="sourceCode" id="cb3"><pre class="downlit sourceCode r">
+<div class="sourceCode" id="cb6"><pre class="downlit sourceCode r">
 <code class="sourceCode R"><span><span class="co"># from anywhere, while the run is going or after it crashed:</span></span>
 <span><span class="fu"><a href="https://rdrr.io/r/base/readLines.html" class="external-link">readLines</a></span><span class="op">(</span><span class="fu"><a href="https://rdrr.io/r/base/file.path.html" class="external-link">file.path</a></span><span class="op">(</span><span class="va">dir</span>, <span class="st">"report.md"</span><span class="op">)</span><span class="op">)</span>     <span class="co"># the story so far</span></span>
 <span><span class="fu"><a href="https://rdrr.io/r/utils/read.table.html" class="external-link">read.csv</a></span><span class="op">(</span><span class="fu"><a href="https://rdrr.io/r/base/file.path.html" class="external-link">file.path</a></span><span class="op">(</span><span class="va">dir</span>, <span class="st">"leaderboard.csv"</span><span class="op">)</span><span class="op">)</span></span>
