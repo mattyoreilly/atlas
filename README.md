@@ -1,5 +1,5 @@
 
-# atlas
+# atlas <img src="man/figures/logo.svg" align="right" height="139" alt="atlas hex logo: a figure kneeling on one knee, holding up a glowing neural-network sphere"/>
 
 Atlas builds models for you, and shows its work. Give it a data frame
 and a target; an LLM agent (via [ellmer](https://ellmer.tidyverse.org))
@@ -31,7 +31,7 @@ atlas is not yet on CRAN. Install the development version from
 
 ``` r
 # install.packages("pak")
-pak::pkg_install("mattyoreilly/Atlas")
+pak::pkg_install("mattyoreilly/atlas")
 ```
 
 You also need an API key for an LLM provider. atlas defaults to
