@@ -93,6 +93,25 @@ all — `exclude` removes them before the agent ever sees it, and
 `atlas_leakage_screen()` automatically flags predictors that alone
 explain almost all of the outcome. See `vignette("constraints")`.
 
+## Unattended runs
+
+For hands-off experimentation — overnight, in a script, on a schedule —
+set `autonomous = TRUE`: the agent states its plan and proceeds instead
+of waiting for approval, iterating keep/discard experiments under the
+stopping rules. Pair it with `test_prop` to hold out rows the agent
+**never sees**; when the run ends, Atlas itself evaluates every
+surviving model on that test set, so the final ranking can’t be gamed by
+overfitting the agent’s own validation scheme:
+
+``` r
+res <- atlas(claims, "severity",
+             autonomous = TRUE,
+             n_models = 10, patience = 8,   # room to explore
+             test_prop = 0.2)               # the ungameable judge
+
+res$test_leaderboard   # held-out performance, best first
+```
+
 ## Sessions
 
 `atlas()` is a one-call wrapper around an `AtlasSession`, which lives in

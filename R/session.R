@@ -38,6 +38,9 @@ AtlasSession <- R6::R6Class("AtlasSession",
     dir = NULL,
     #' @field code Character vector of every code chunk executed so far.
     code = character(),
+    #' @field test_data Held-out test rows (when `test_prop > 0`); never
+    #'   placed in the agent's environment.
+    test_data = NULL,
 
     #' @description Create a session.
     #' @param data A data.frame.
@@ -79,18 +82,27 @@ AtlasSession <- R6::R6Class("AtlasSession",
     #'   return `NULL` when there is nothing to say. Used by [atlas_app()]'s
     #'   "Send now" box; front-ends typically read the message from a file or
     #'   queue.
+    #' @param autonomous Run without a human: the agent states its plan and
+    #'   proceeds instead of asking for approval, and never calls `ask_user`.
+    #' @param test_prop Proportion of rows (0 to <1) to hold out as a final
+    #'   test set **the agent never sees**. Final models are evaluated on it
+    #'   by Atlas itself after the run (`$results()$test_leaderboard`), so
+    #'   the comparison can't be gamed by overfitting the agent's own
+    #'   validation scheme. `0` (default) disables the split.
     initialize = function(data, outcome, n_models = 3, goal = NULL,
                           constraints = NULL, chat = NULL, dir = NULL,
                           on_ask = NULL, display = c("console", "markdown"),
                           patience = 3, min_improve = 0.05, exclude = NULL,
-                          interject = NULL) {
+                          interject = NULL, autonomous = FALSE,
+                          test_prop = 0) {
       private$on_ask <- on_ask
       private$interject <- interject
       private$display <- match.arg(display)
       stopifnot(is.data.frame(data), is.character(outcome), length(outcome) == 1,
                 is.numeric(n_models), length(n_models) == 1, n_models >= 1,
                 is.numeric(patience), patience >= 1,
-                is.numeric(min_improve), min_improve >= 0, min_improve <= 1)
+                is.numeric(min_improve), min_improve >= 0, min_improve <= 1,
+                is.numeric(test_prop), test_prop >= 0, test_prop < 1)
       if (!outcome %in% names(data)) {
         stop("outcome '", outcome, "' is not a column of `data`", call. = FALSE)
       }
@@ -98,17 +110,26 @@ AtlasSession <- R6::R6Class("AtlasSession",
         stop("the outcome cannot be excluded", call. = FALSE)
       }
       data <- data[setdiff(names(data), exclude)]
+      if (test_prop > 0) {
+        idx <- seeded_sample(nrow(data), max(1, round(nrow(data) * test_prop)))
+        self$test_data <- data[idx, , drop = FALSE]
+        data <- data[-idx, , drop = FALSE]
+      }
       leakage <- tryCatch(atlas_leakage_screen(data, outcome),
                           error = function(e) NULL)
       private$meta <- list(outcome = outcome, n_models = n_models, goal = goal,
                            constraints = normalize_constraints(constraints),
                            patience = patience, min_improve = min_improve,
-                           exclude = exclude, leakage = leakage)
+                           exclude = exclude, leakage = leakage,
+                           autonomous = autonomous, test_prop = test_prop)
       self$dir <- path.expand(
         dir %||% file.path(getOption("atlas.dir", ".atlas"),
                            format(Sys.time(), "%Y%m%d-%H%M%S")))
       dir.create(self$dir, recursive = TRUE, showWarnings = FALSE)
       saveRDS(data, file.path(self$dir, "data.rds"))
+      if (!is.null(self$test_data)) {
+        saveRDS(self$test_data, file.path(self$dir, "test.rds"))
+      }
       saveRDS(private$meta, file.path(self$dir, "meta.rds"))
 
       self$env <- new.env(parent = globalenv())
@@ -117,7 +138,7 @@ AtlasSession <- R6::R6Class("AtlasSession",
       sys_prompt <- atlas_system_prompt(
         n_models, length(private$meta$constraints) > 0,
         patience = patience, min_improve = min_improve,
-        has_modelblueprint = mb_available())
+        has_modelblueprint = mb_available(), autonomous = autonomous)
       if (identical(private$display, "markdown")) {
         sys_prompt <- paste0(
           sys_prompt, "\n\nYour narration and code output are rendered as",
@@ -221,9 +242,17 @@ AtlasSession <- R6::R6Class("AtlasSession",
         warning("agent has not produced `atlas_models` yet; ",
                 "run $build() or inspect $chat", call. = FALSE)
       }
+      test_lb <- NULL
+      if (!is.null(self$test_data) && !is.null(self$env$atlas_models)) {
+        test_lb <- evaluate_on_test(self$env$atlas_models, self$test_data,
+                                    private$meta$outcome)
+        utils::write.csv(test_lb, file.path(self$dir, "test_leaderboard.csv"),
+                         row.names = FALSE)
+      }
       structure(
         list(models = self$env$atlas_models,
              leaderboard = self$env$atlas_leaderboard,
+             test_leaderboard = test_lb,
              constraints = self$check(),
              report = private$last_report, code = self$code,
              dir = self$dir, session = self),
@@ -460,7 +489,8 @@ atlas_resume <- function(dir, chat = NULL, ...) {
                         goal = meta$goal, constraints = meta$constraints,
                         chat = chat, dir = dir,
                         patience = meta$patience %||% 3,
-                        min_improve = meta$min_improve %||% 0.05, ...)
+                        min_improve = meta$min_improve %||% 0.05,
+                        autonomous = meta$autonomous %||% FALSE, ...)
   code_path <- file.path(dir, "code.rds")
   if (file.exists(code_path)) {
     s$code <- readRDS(code_path)
@@ -470,7 +500,57 @@ atlas_resume <- function(dir, chat = NULL, ...) {
   }
   turns_path <- file.path(dir, "turns.rds")
   if (file.exists(turns_path)) s$chat$set_turns(readRDS(turns_path))
+  test_path <- file.path(dir, "test.rds")
+  if (file.exists(test_path)) s$test_data <- readRDS(test_path)
   s
+}
+
+# Deterministic sample that leaves the caller's RNG stream untouched.
+seeded_sample <- function(n, size, seed = 1) {
+  old <- if (exists(".Random.seed", globalenv(), inherits = FALSE)) {
+    get(".Random.seed", globalenv())
+  }
+  on.exit(if (!is.null(old)) assign(".Random.seed", old, globalenv()),
+          add = TRUE)
+  set.seed(seed)
+  sample.int(n, size)
+}
+
+# Pick a sensible test metric from the outcome: RMSE for continuous
+# outcomes, accuracy otherwise (thresholding numeric predictions at 0.5
+# for binary targets).
+auto_metric <- function(y) {
+  if (is.numeric(y) && length(unique(y)) > 5) {
+    list(name = "rmse", higher_better = FALSE,
+         fn = function(actual, predicted) {
+           sqrt(mean((actual - as.numeric(predicted))^2))
+         })
+  } else {
+    list(name = "accuracy", higher_better = TRUE,
+         fn = function(actual, predicted) {
+           if (is.numeric(predicted) && is.numeric(actual) &&
+               all(actual %in% c(0, 1))) {
+             predicted <- as.numeric(predicted >= 0.5)
+           }
+           mean(as.character(actual) == as.character(predicted))
+         })
+  }
+}
+
+# Atlas-side final evaluation: the agent never touches the test rows, so
+# this ranking can't be gamed. Models that can't predict get NA, not an
+# error - one broken candidate shouldn't sink the run.
+evaluate_on_test <- function(models, test, outcome) {
+  m <- auto_metric(test[[outcome]])
+  rows <- lapply(names(models), function(nm) {
+    value <- tryCatch(
+      m$fn(test[[outcome]], stats::predict(models[[nm]], newdata = test)),
+      error = function(e) NA_real_)
+    data.frame(model = nm, metric = m$name, value = value)
+  })
+  out <- do.call(rbind, rows)
+  out[order(out$value, decreasing = m$higher_better, na.last = TRUE), ,
+      drop = FALSE]
 }
 
 # modelblueprint is optional: only mention it to the agent (and only allow
@@ -481,7 +561,8 @@ mb_available <- function() {
 
 atlas_system_prompt <- function(n_models, has_constraints = FALSE,
                                 patience = 3, min_improve = 0.05,
-                                has_modelblueprint = TRUE) {
+                                has_modelblueprint = TRUE,
+                                autonomous = FALSE) {
   paste(
     "You are Atlas, an expert R statistician and ML engineer. You build models",
     "by writing R code and running it with the run_r_code tool. You can ask",
@@ -514,17 +595,28 @@ atlas_system_prompt <- function(n_models, has_constraints = FALSE,
     "   CV, fixed seed). Also consider which predictors should have a",
     "   monotone effect on the outcome as a matter of domain sense (e.g. a",
     "   house's price should not fall as floor area grows); include any such",
-    "   suggestions, with direction and a one-line why, in the plan. Present",
-    "   the plan with ask_user, explicitly inviting approval, changes, or",
-    "   extra instructions. Incorporate whatever the user says - if they ask",
-    "   for substantial changes, restate the revised plan in one short",
-    "   paragraph before proceeding - and call add_monotone_constraint for",
-    "   each monotone suggestion the user approves. Never start fitting",
-    "   until the user has responded.",
-    "3. The user may also steer you mid-build (through ask_user answers or",
-    "   messages in tool results): treat instructions like 'focus on",
-    "   improvements' or 'change the feature engineering' as immediate",
-    "   course corrections, acknowledge them, and adjust the plan.",
+    if (autonomous) paste0(
+      "   suggestions, with direction and a one-line why, in the plan. You",
+      "\n   are running autonomously: state the plan, apply monotone",
+      "\n   constraints that are clearly right on domain grounds via",
+      "\n   add_monotone_constraint, and proceed without waiting.")
+    else paste0(
+      "   suggestions, with direction and a one-line why, in the plan. Present",
+      "\n   the plan with ask_user, explicitly inviting approval, changes, or",
+      "\n   extra instructions. Incorporate whatever the user says - if they ask",
+      "\n   for substantial changes, restate the revised plan in one short",
+      "\n   paragraph before proceeding - and call add_monotone_constraint for",
+      "\n   each monotone suggestion the user approves. Never start fitting",
+      "\n   until the user has responded."),
+    if (autonomous) paste0(
+      "3. No user is available at any point in this run. Never call",
+      "\n   ask_user; make reasonable decisions yourself and record them in",
+      "\n   your narration.")
+    else paste0(
+      "3. The user may also steer you mid-build (through ask_user answers or",
+      "\n   messages in tool results): treat instructions like 'focus on",
+      "\n   improvements' or 'change the feature engineering' as immediate",
+      "\n   course corrections, acknowledge them, and adjust the plan."),
     "4. Fit and evaluate each candidate on held-out data. After each one,",
     "   narrate one line: model name, metric, value.",
     "5. Refit each candidate on all rows for the final versions.",
@@ -547,7 +639,10 @@ atlas_system_prompt <- function(n_models, has_constraints = FALSE,
     "- Prefer base R; check optional packages with requireNamespace() and fall",
     "  back gracefully if missing.",
     "- Keep each code chunk small; inspect output before continuing.",
-    "- Use ask_user when a decision genuinely needs the user; otherwise proceed.",
+    if (autonomous)
+      "- Never call ask_user: no user is available for this run."
+    else
+      "- Use ask_user when a decision genuinely needs the user; otherwise proceed.",
     "- Constraints can be added mid-session with add_monotone_constraint.",
     "  Machine checks require `predict(model, newdata)` to work on a",
     "  data.frame like `data`; make sure every model in `atlas_models`",
@@ -619,12 +714,18 @@ atlas_validation_prompt <- function(dir) {
 
 atlas_task_prompt <- function(data, meta) {
   profile <- utils::capture.output(utils::str(data, list.len = 50))
-  paste(
+  # unlist() drops the NULLs from inactive sections, so no blank gaps
+  parts <- list(
     sprintf("Build up to %d models predicting `%s` from the other columns.",
             meta$n_models, meta$outcome),
     sprintf("The data.frame `data` has %d rows and %d columns:",
             nrow(data), ncol(data)),
     paste(profile, collapse = "\n"),
+    if (isTRUE(meta$test_prop > 0)) paste0(
+      "A further ", round(meta$test_prop * 100), "% of rows has been held ",
+      "out as a final test set that you will NEVER see. Every final model ",
+      "is evaluated on it after the run, so optimise for genuine ",
+      "generalisation, not for your own validation score."),
     if (length(meta$exclude) > 0) paste0(
       "The user excluded these columns (unavailable at prediction time, or ",
       "leakage risk); they have already been removed from `data`: ",
@@ -648,9 +749,9 @@ atlas_task_prompt <- function(data, meta) {
                                   function(ci) is.null(ci$check), logical(1)),
                            "", " (machine-checked)")),
             collapse = "\n")),
-    if (!is.null(meta$goal)) paste("Additional instructions:", meta$goal),
-    sep = "\n\n"
+    if (!is.null(meta$goal)) paste("Additional instructions:", meta$goal)
   )
+  paste(unlist(parts), collapse = "\n\n")
 }
 
 atlas_fix_prompt <- function(fails) {

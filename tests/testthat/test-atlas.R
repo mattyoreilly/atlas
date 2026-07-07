@@ -122,6 +122,37 @@ test_that("build() requests modelblueprint validation for the winner", {
   expect_match(chat$log[2], "Do NOT create any other artifacts")
 })
 
+test_that("autonomous run with test_prop ends in an ungameable test ranking", {
+  dir <- temp_dir()
+  chat <- FakeChat$new(list(
+    list(
+      calls = list(list(tool = "run_r_code", args = list(code = paste(
+        "atlas_models <- list(m1 = lm(mpg ~ wt, data), m2 = lm(mpg ~ 1, data));",
+        "atlas_leaderboard <- data.frame(name = c('m1', 'm2'),",
+        "  metric = 'rmse', value = c(3, 6))")))),
+      reply = "built autonomously"
+    )
+  ))
+  res <- atlas(mtcars, "mpg", chat = chat, dir = dir, verbose = FALSE,
+               refine = FALSE, validate = FALSE,
+               autonomous = TRUE, test_prop = 0.25)
+
+  # the models were trained on the 24 held-in rows only
+  expect_equal(nobs(res$models$m1), 24)
+
+  lb <- res$test_leaderboard
+  expect_s3_class(lb, "data.frame")
+  expect_equal(nrow(lb), 2)
+  expect_equal(lb$model[1], "m1")   # real model beats intercept on test
+  expect_true(file.exists(file.path(dir, "test_leaderboard.csv")))
+  # test table is printed (rule labels go to stderr under testthat)
+  expect_output(print(res), "m1 +rmse +2\\.")
+
+  # autonomous: no approval question was ever asked
+  expect_length(chat$log, 1)
+  expect_match(chat$log[1], "NEVER see")
+})
+
 test_that("without modelblueprint, validation is skipped cleanly", {
   testthat::local_mocked_bindings(mb_available = function() FALSE)
   chat <- FakeChat$new(list(

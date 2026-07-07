@@ -53,8 +53,22 @@
 #'   `options(atlas.dir = "~/atlas-runs")` in your `.Rprofile` to send every
 #'   run somewhere of your choosing, or pass `dir` explicitly.
 #' @param verbose Stream the agent's narration to the console.
+#' @param autonomous Run with no human in the loop: the agent states its plan
+#'   and proceeds instead of waiting for approval, and never asks questions.
+#'   Combine with a generous `n_models`/`patience` and `test_prop` for
+#'   unattended experimentation runs — e.g.
+#'   `atlas(d, "y", autonomous = TRUE, n_models = 10, patience = 8,
+#'   test_prop = 0.2)` — where the agent iterates keep/discard experiments
+#'   and the survivors are judged on the held-out test set at the end.
+#' @param test_prop Proportion of rows (0 to <1) to hold out as a final test
+#'   set the agent never sees. After the run, Atlas itself evaluates every
+#'   final model on it (RMSE for continuous outcomes, accuracy otherwise) —
+#'   a ranking the agent can't overfit. Reported as `test_leaderboard` in
+#'   the results and saved to `test_leaderboard.csv` in the run directory.
+#'   `0` (default) disables the split.
 #' @return An object of class `atlas`: list with `models` (named list of
 #'   fitted models), `leaderboard` (data.frame of validation metrics),
+#'   `test_leaderboard` (held-out test metrics, when `test_prop > 0`),
 #'   `report` (markdown, how each model was built), `code` (every code chunk
 #'   the agent ran), `dir`, and `session` (the live [AtlasSession], for
 #'   follow-ups via `$tell()`).
@@ -78,11 +92,13 @@ atlas <- function(data, outcome, n_models = 3, goal = NULL,
                   constraints = NULL, chat = NULL, dir = NULL,
                   verbose = TRUE, max_fix_rounds = 2,
                   patience = 3, min_improve = 0.05, refine = TRUE,
-                  validate = TRUE, exclude = NULL) {
+                  validate = TRUE, exclude = NULL,
+                  autonomous = FALSE, test_prop = 0) {
   session <- AtlasSession$new(data, outcome, n_models = n_models, goal = goal,
                               constraints = constraints, chat = chat, dir = dir,
                               patience = patience, min_improve = min_improve,
-                              exclude = exclude)
+                              exclude = exclude, autonomous = autonomous,
+                              test_prop = test_prop)
   session$build(verbose = verbose, max_fix_rounds = max_fix_rounds,
                 refine = refine, validate = validate)
   session$results()
@@ -94,8 +110,13 @@ print.atlas <- function(x, ...) {
   cat("run directory:", x$dir, "\n")
   if (is.data.frame(x$leaderboard) && nrow(x$leaderboard) > 0) {
     cat("\n")
-    cli::cli_rule(left = "leaderboard")
+    cli::cli_rule(left = "leaderboard (agent's validation)")
     print_clean(x$leaderboard)
+  }
+  if (is.data.frame(x$test_leaderboard) && nrow(x$test_leaderboard) > 0) {
+    cat("\n")
+    cli::cli_rule(left = "held-out test set")
+    print_clean(x$test_leaderboard)
   }
   cst <- x$constraints
   if (is.data.frame(cst) && nrow(cst) > 0) {

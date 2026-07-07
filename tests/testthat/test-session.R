@@ -45,6 +45,66 @@ test_that("stopping rules are validated, stored, and reach the system prompt", {
   expect_match(r$chat$get_system_prompt(), "4 consecutive attempts")
 })
 
+test_that("test_prop holds out rows the agent never sees", {
+  dir <- temp_dir()
+  s <- AtlasSession$new(mtcars, "mpg", test_prop = 0.25,
+                        chat = real_chat(), dir = dir)
+
+  expect_equal(nrow(s$test_data), 8)
+  expect_equal(nrow(s$env$data), 24)
+  # disjoint, and together they are the original data
+  expect_length(intersect(rownames(s$env$data), rownames(s$test_data)), 0)
+  expect_setequal(c(rownames(s$env$data), rownames(s$test_data)),
+                  rownames(mtcars))
+  # persisted, deterministic, and mentioned in the brief
+  expect_true(file.exists(file.path(dir, "test.rds")))
+  s2 <- AtlasSession$new(mtcars, "mpg", test_prop = 0.25,
+                         chat = real_chat(), dir = temp_dir())
+  expect_identical(s$env$data, s2$env$data)
+  prompt <- Atlas:::atlas_task_prompt(s$env$data,
+                                      readRDS(file.path(dir, "meta.rds")))
+  expect_match(prompt, "NEVER see")
+
+  # the split survives a resume
+  s$checkpoint()
+  r <- atlas_resume(dir, chat = real_chat())
+  expect_equal(nrow(r$test_data), 8)
+})
+
+test_that("autonomous mode rewrites the human-in-the-loop contract", {
+  s <- new_session(autonomous = TRUE)
+  sp <- s$chat$get_system_prompt()
+  expect_match(sp, "running autonomously")
+  expect_match(sp, "Never call ask_user")
+  expect_no_match(sp, "until the user has responded")
+
+  # default sessions keep the approval gate
+  expect_match(new_session()$chat$get_system_prompt(),
+               "until the user has responded")
+})
+
+test_that("evaluate_on_test ranks models and tolerates broken ones", {
+  test <- mtcars[1:10, ]
+  models <- list(
+    good = lm(mpg ~ wt + hp, mtcars[11:32, ]),
+    weak = lm(mpg ~ 1, mtcars[11:32, ]),
+    broken = structure(list(), class = "no_predict_method")
+  )
+  lb <- Atlas:::evaluate_on_test(models, test, "mpg")
+
+  expect_equal(lb$metric, rep("rmse", 3))
+  expect_equal(lb$model[1], "good")           # best rmse first
+  expect_true(lb$value[1] < lb$value[2])
+  expect_true(is.na(lb$value[lb$model == "broken"]))
+
+  # binary outcome: accuracy, with numeric predictions thresholded
+  cls <- Atlas:::evaluate_on_test(
+    list(m = glm(am ~ wt, mtcars, family = binomial)),
+    mtcars, "am")
+  expect_equal(cls$metric, "accuracy")
+  expect_true(cls$value > 0.5)
+})
+
 test_that("the atlas.dir option controls where runs are saved", {
   base <- temp_dir()
   old <- options(atlas.dir = base)

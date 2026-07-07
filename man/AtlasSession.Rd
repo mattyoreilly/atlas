@@ -42,6 +42,9 @@ s <- atlas_resume(".atlas/20260703-141500")
     \item{\code{dir}}{Run directory used for checkpoints and artifacts.}
 
     \item{\code{code}}{Character vector of every code chunk executed so far.}
+
+    \item{\code{test_data}}{Held-out test rows (when \code{test_prop > 0}); never
+placed in the agent's environment.}
   }
   \if{html}{\out{</div>}}
 }
@@ -78,7 +81,9 @@ s <- atlas_resume(".atlas/20260703-141500")
   patience = 3,
   min_improve = 0.05,
   exclude = NULL,
-  interject = NULL
+  interject = NULL,
+  autonomous = FALSE,
+  test_prop = 0
 )}
     \if{html}{\out{</div>}}
   }
@@ -124,6 +129,13 @@ is delivered with its next tool result, marked as highest priority);
 return \code{NULL} when there is nothing to say. Used by \code{\link[=atlas_app]{atlas_app()}}'s
 "Send now" box; front-ends typically read the message from a file or
 queue.}
+      \item{\code{autonomous}}{Run without a human: the agent states its plan and
+proceeds instead of asking for approval, and never calls \code{ask_user}.}
+      \item{\code{test_prop}}{Proportion of rows (0 to <1) to hold out as a final
+test set \strong{the agent never sees}. Final models are evaluated on it
+by Atlas itself after the run (\verb{$results()$test_leaderboard}), so
+the comparison can't be gamed by overfitting the agent's own
+validation scheme. \code{0} (default) disables the split.}
     }
     \if{html}{\out{</div>}}
   }

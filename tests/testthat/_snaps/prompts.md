@@ -163,10 +163,6 @@
        $ gear: num  4 4 4 3 3 3 3 4 4 4 ...
        $ carb: num  4 4 1 1 2 1 4 2 2 4 ...
       
-      
-      
-      
-      
       Hard constraints - every final model must satisfy ALL of these:
       1. [uses_wt] The variable `wt` must be used as a predictor. (machine-checked)
       2. [constraint_2] no leakage
@@ -205,7 +201,7 @@
       run directory: <run-dir> 
       
     Message
-      -- leaderboard -----------------------------------------------------------------
+      -- leaderboard (agent's validation) --------------------------------------------
     Output
        name metric value
        m1   rmse   3.2  
@@ -229,7 +225,7 @@
       run directory: <run-dir> 
       
     Message
-      -- leaderboard -----------------------------------------------------------------
+      -- leaderboard (agent's validation) --------------------------------------------
     Output
        name metric value
        m1   rmse   3.2  

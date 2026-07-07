@@ -18,7 +18,9 @@ atlas(
   min_improve = 0.05,
   refine = TRUE,
   validate = TRUE,
-  exclude = NULL
+  exclude = NULL,
+  autonomous = FALSE,
+  test_prop = 0
 )
 }
 \arguments{
@@ -80,10 +82,25 @@ available at prediction time in deployment, or they leak the outcome.
 They are removed from the data before the agent sees it. Predictors that
 survive are additionally screened with \code{\link[=atlas_leakage_screen]{atlas_leakage_screen()}}, and the
 agent is told to confirm anything suspicious with you before using it.}
+
+\item{autonomous}{Run with no human in the loop: the agent states its plan
+and proceeds instead of waiting for approval, and never asks questions.
+Combine with a generous \code{n_models}/\code{patience} and \code{test_prop} for
+unattended experimentation runs — e.g.
+\code{atlas(d, "y", autonomous = TRUE, n_models = 10, patience = 8, test_prop = 0.2)} — where the agent iterates keep/discard experiments
+and the survivors are judged on the held-out test set at the end.}
+
+\item{test_prop}{Proportion of rows (0 to <1) to hold out as a final test
+set the agent never sees. After the run, Atlas itself evaluates every
+final model on it (RMSE for continuous outcomes, accuracy otherwise) —
+a ranking the agent can't overfit. Reported as \code{test_leaderboard} in
+the results and saved to \code{test_leaderboard.csv} in the run directory.
+\code{0} (default) disables the split.}
 }
 \value{
 An object of class \code{atlas}: list with \code{models} (named list of
 fitted models), \code{leaderboard} (data.frame of validation metrics),
+\code{test_leaderboard} (held-out test metrics, when \code{test_prop > 0}),
 \code{report} (markdown, how each model was built), \code{code} (every code chunk
 the agent ran), \code{dir}, and \code{session} (the live \link{AtlasSession}, for
 follow-ups via \verb{$tell()}).
