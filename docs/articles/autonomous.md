@@ -71,6 +71,53 @@ the budget is already gone.
 Use them together: generous statistical rules so the agent explores, and
 a mechanical ceiling so “overnight” can’t become “over the weekend”.
 
+The budget binds the whole session, follow-up `$tell()` calls included -
+a finished run with nothing left in the tank will refuse further work.
+That is deliberate (a cap you can talk your way past is not a cap), and
+the remedy is explicit: grant more, then continue.
+
+``` r
+
+res$session$add_budget(steps = 25)
+res$session$tell("remove the worst predictor and re-evaluate")
+```
+
+## The live tally
+
+Every model and every tweak is scored the moment it is evaluated. The
+agent must call its `record_attempt` tool after each attempt, and
+atlas - not the agent - keeps the ledger: it compares the result against
+the best so far (using `stopping_tolerance`), prints a one-line tally,
+and returns a mechanical verdict the agent is instructed to obey:
+
+    [tally #7 | gbm_depth3: rmse = 2.412 | best: glm_gamma = 2.380 | flat: 2/8 -> DISCARD]
+
+`KEEP` means the attempt is the new best; `DISCARD` means revert the
+change completely - if it didn’t improve on current performance, it
+goes. The flat-attempt counting is mechanical too: when
+`stopping_rounds` consecutive attempts fail to improve, the verdict says
+so in capitals and tells the agent to stop iterating and finalise. The
+full tally is persisted to `tally.csv` as it grows, returned as
+`res$tally`, and summarised by `print(res)`.
+
+## Steering a run that is already going
+
+Autonomy doesn’t mean you can’t speak. From any other R session or
+terminal, send the run a message:
+
+``` r
+
+atlas_message("~/runs/severity",
+              "focus on the gamma GLM family; stop trying trees")
+```
+
+It is delivered with the agent’s next code execution, marked as its
+highest-priority instruction; the agent acknowledges it and adjusts
+course. “Focus on gradient boosting”, “change the feature engineering
+for income”, “stop tuning and finalise” - anything you would say over a
+colleague’s shoulder. Messages that arrive after the run has finished
+are never picked up; resume and `$tell()` instead.
+
 ## The protected test set
 
 `test_prop` is the piece that makes an autonomous run trustworthy.

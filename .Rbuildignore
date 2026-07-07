@@ -3,6 +3,7 @@
 ^README\.html$
 ^docs$
 ^_pkgdown\.yml$
+^example\.R$
 ^\.atlas$
 ^\.claude$
 ^\.DS_Store$
@@ -10,3 +11,4 @@
 ^\.Rproj\.user$
 ^doc$
 ^Meta$
+^atlas$

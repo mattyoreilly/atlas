@@ -105,6 +105,94 @@ test_that("evaluate_on_test ranks models and tolerates broken ones", {
   expect_true(cls$value > 0.5)
 })
 
+test_that("record_attempt keeps the tally and issues mechanical verdicts", {
+  dir <- temp_dir()
+  s <- new_session(dir, stopping_rounds = 2, stopping_tolerance = 0.05)
+  record <- s$chat$get_tools()$record_attempt
+
+  # NB: record() has side effects, so never call it inside an expectation -
+  # testthat can evaluate the object expression more than once
+
+  # baseline is always kept
+  v1 <- record(name = "glm1", metric = "rmse", value = 10,
+               higher_better = FALSE)
+  expect_match(v1, "^KEEP \\(baseline\\)")
+
+  # a real improvement (>=5% better) is kept and becomes the new best
+  v2 <- record(name = "glm2", metric = "rmse", value = 9,
+               higher_better = FALSE)
+  expect_match(v2, "^KEEP \\(new best")
+
+  # within tolerance is NOT an improvement
+  out <- record(name = "glm3", metric = "rmse", value = 8.8,
+                higher_better = FALSE)
+  expect_match(out, "^DISCARD")
+  expect_match(out, "glm2")               # names the reigning best
+
+  # second flat attempt in a row: stopping rule announced mechanically
+  out2 <- record(name = "glm4", metric = "rmse", value = 9.4,
+                 higher_better = FALSE)
+  expect_match(out2, "STOPPING RULE TRIGGERED")
+
+  # the tally is complete, persisted, and in the results
+  expect_equal(s$tally$verdict, c("KEEP", "KEEP", "DISCARD", "DISCARD"))
+  expect_equal(s$tally$best, c(10, 9, 9, 9))
+  expect_true(file.exists(file.path(dir, "tally.csv")))
+  s$env$atlas_models <- list(m = lm(mpg ~ wt, mtcars))
+  expect_equal(nrow(s$results()$tally), 4)
+
+  # an improvement resets the flat counter
+  v5 <- record(name = "gbm1", metric = "rmse", value = 8,
+               higher_better = FALSE)
+  expect_match(v5, "^KEEP")
+
+  # non-finite metrics are discarded, not crashed on
+  v6 <- record(name = "bad", metric = "rmse", value = NaN,
+               higher_better = FALSE)
+  expect_match(v6, "not a finite number")
+})
+
+test_that("tally state survives a resume", {
+  dir <- temp_dir()
+  s <- new_session(dir, stopping_rounds = 3)
+  record <- s$chat$get_tools()$record_attempt
+  record(name = "a", metric = "rmse", value = 10, higher_better = FALSE)
+  record(name = "b", metric = "rmse", value = 11, higher_better = FALSE)
+  s$checkpoint()
+
+  r <- atlas_resume(dir, chat = real_chat())
+  expect_equal(nrow(r$tally), 2)
+  # best (a = 10) and the flat count (1) carried over: a worse attempt
+  # continues the count rather than becoming a fresh baseline
+  out <- r$chat$get_tools()$record_attempt(
+    name = "c", metric = "rmse", value = 12, higher_better = FALSE)
+  expect_match(out, "^DISCARD")
+  expect_match(out, "a = 10")
+  expect_equal(nrow(r$tally), 3)
+})
+
+test_that("atlas_message() steers a session through the run directory", {
+  dir <- temp_dir()
+  s <- new_session(dir)
+
+  atlas_message(dir, "focus on gradient boosting from here on")
+  out <- s$chat$get_tools()$run_r_code("1 + 1")
+  expect_match(out, "MESSAGE FROM THE USER")
+  expect_match(out, "gradient boosting")
+  expect_false(file.exists(file.path(dir, "message.txt")))  # consumed
+
+  # nothing pending: next result is clean
+  out2 <- s$chat$get_tools()$run_r_code("2 + 2")
+  expect_no_match(out2, "MESSAGE FROM THE USER")
+
+  # autonomous sessions advertise the channel too
+  expect_match(new_session(autonomous = TRUE)$chat$get_system_prompt(),
+               "MESSAGE FROM THE USER")
+
+  expect_error(atlas_message(temp_dir(), "hi"), "no run directory")
+  expect_error(atlas_message(dir, ""), "nzchar")
+})
+
 test_that("max_steps is a mechanical stop, not a suggestion", {
   s <- new_session(max_steps = 2)
   run_tool <- s$chat$get_tools()$run_r_code
@@ -126,6 +214,38 @@ test_that("max_steps is a mechanical stop, not a suggestion", {
   expect_match(s$chat$get_system_prompt(), "2 code executions")
   # and not mentioned at all when unlimited
   expect_no_match(new_session()$chat$get_system_prompt(), "Hard budget")
+})
+
+test_that("add_budget() unblocks an exhausted session", {
+  dir <- temp_dir()
+  s <- atlas_session$new(mtcars, "mpg", chat = real_chat(), dir = dir,
+                         max_steps = 1)
+  run_tool <- s$chat$get_tools()$run_r_code
+  run_tool("1 + 1")
+  blocked <- run_tool("2 + 2")
+  expect_match(blocked, "BUDGET EXHAUSTED")
+  expect_match(blocked, "add_budget")   # the agent relays the remedy
+
+  s$add_budget(steps = 2)
+  expect_match(run_tool("2 + 2"), "^\\[1\\] 4")
+  # the extension is persisted for resumes
+  expect_equal(readRDS(file.path(dir, "meta.rds"))$max_steps, 3)
+})
+
+test_that("tell() on an exhausted session fails fast, without an LLM call", {
+  chat <- FakeChat$new()   # empty script: any message sent would error
+  s <- atlas_session$new(mtcars, "mpg", chat = chat, dir = temp_dir(),
+                         max_steps = 1)
+  s$chat$get_tools()$run_r_code("1 + 1")   # spend the budget
+
+  expect_error(s$tell("remove the worst predictor"), "budget exhausted")
+  expect_error(s$tell("remove the worst predictor"), "add_budget")
+  expect_length(chat$log, 0)               # nothing reached the model
+
+  s$add_budget(steps = 5)
+  # now the message goes through (FakeChat script exhausted = it was sent)
+  expect_error(s$tell("try again", verbose = FALSE), "script exhausted")
+  expect_length(chat$log, 1)
 })
 
 test_that("max_runtime blocks execution after the deadline", {
@@ -268,10 +388,11 @@ test_that("interjections reach the agent through the next tool result", {
   out2 <- run_tool("2 + 2")
   expect_no_match(out2, "MESSAGE FROM THE USER")
 
-  # the system prompt only mentions interjections when the hook is present
+  # every session advertises the steering channel (message.txt works even
+  # without a front-end hook)
   expect_match(s$chat$get_system_prompt(), "MESSAGE FROM THE USER")
-  expect_no_match(new_session()$chat$get_system_prompt(),
-                  "MESSAGE FROM THE USER")
+  expect_match(new_session()$chat$get_system_prompt(),
+               "MESSAGE FROM THE USER")
 })
 
 test_that("ask_user degrades gracefully when not interactive", {

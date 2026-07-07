@@ -41,6 +41,11 @@ atlas_session <- R6::R6Class("atlas_session",
     #' @field test_data Held-out test rows (when `test_prop > 0`); never
     #'   placed in the agent's environment.
     test_data = NULL,
+    #' @field tally Live experiment tally: one row per recorded attempt
+    #'   (`attempt`, `name`, `metric`, `value`, `best`, `verdict`), kept by
+    #'   atlas from the agent's `record_attempt` calls and persisted to
+    #'   `tally.csv` in the run directory.
+    tally = NULL,
 
     #' @description Create a session.
     #' @param data A data.frame.
@@ -156,6 +161,12 @@ atlas_session <- R6::R6Class("atlas_session",
       if (!is.null(self$test_data)) {
         saveRDS(self$test_data, file.path(self$dir, "test.rds"))
       }
+      tally_path <- file.path(self$dir, "tally.csv")
+      if (file.exists(tally_path)) {
+        # resuming: restore the tally and the derived best/flat state
+        self$tally <- utils::read.csv(tally_path)
+        private$restore_tally_state()
+      }
       saveRDS(private$meta, file.path(self$dir, "meta.rds"))
 
       self$env <- new.env(parent = globalenv())
@@ -173,13 +184,11 @@ atlas_session <- R6::R6Class("atlas_session",
           " bold, lists) and never draw ASCII banners, rules, or box art",
           " with cat() - they render badly.")
       }
-      if (!is.null(interject)) {
-        sys_prompt <- paste0(
-          sys_prompt, "\n\nThe user can send you messages while you work;",
-          " they arrive inside tool results marked [MESSAGE FROM THE USER].",
-          " Treat them as your highest-priority instruction: acknowledge the",
-          " message and adjust your plan before doing anything else.")
-      }
+      sys_prompt <- paste0(
+        sys_prompt, "\n\nThe user can send you messages while you work;",
+        " they arrive inside tool results marked [MESSAGE FROM THE USER].",
+        " Treat them as your highest-priority instruction: acknowledge the",
+        " message and adjust your plan before doing anything else.")
       self$chat$set_system_prompt(sys_prompt)
       private$register_tools()
     },
@@ -240,6 +249,12 @@ atlas_session <- R6::R6Class("atlas_session",
     #' @return The agent's reply (invisibly).
     tell = function(text, verbose = TRUE) {
       stopifnot(is.character(text), length(text) == 1)
+      reason <- private$budget_reason()
+      if (!is.null(reason)) {
+        stop("session budget exhausted (", reason, ") - nothing was sent ",
+             "to the LLM. Grant more with $add_budget(steps = , seconds = ) ",
+             "and retry.", call. = FALSE)
+      }
       private$verbose <- verbose
       if (private$context_tokens() >= private$compact_at) {
         self$compact()
@@ -289,12 +304,45 @@ atlas_session <- R6::R6Class("atlas_session",
         list(models = self$env$atlas_models,
              leaderboard = self$env$atlas_leaderboard,
              test_leaderboard = test_lb,
+             tally = self$tally,
              constraints = self$check(),
              report = private$last_report, code = self$code,
              cost = tryCatch(self$chat$get_cost(), error = function(e) NULL),
              dir = self$dir, session = self),
         class = "atlas"
       )
+    },
+
+    #' @description Grant the agent more mechanical budget. The hard caps
+    #'   (`max_steps`, `max_runtime`) protect unattended runs, but they also
+    #'   bind follow-up `$tell()` calls on a finished session - top the
+    #'   budget up explicitly when you want more work done:
+    #'   `res$session$add_budget(steps = 25)`.
+    #' @param steps Additional code executions to allow.
+    #' @param seconds Additional wall-clock seconds to allow.
+    add_budget = function(steps = 0, seconds = 0) {
+      stopifnot(is.numeric(steps), steps >= 0,
+                is.numeric(seconds), seconds >= 0)
+      private$max_steps <- private$max_steps + steps
+      if (seconds > 0 && !is.null(private$deadline)) {
+        private$deadline <- max(private$deadline, Sys.time()) + seconds
+        private$max_runtime <- private$max_runtime + seconds
+      }
+      private$meta$max_steps <- private$max_steps
+      private$meta$max_runtime <- private$max_runtime
+      saveRDS(private$meta, file.path(self$dir, "meta.rds"))
+      if (private$verbose) {
+        cli::cli_alert_info(sprintf(
+          "Budget extended: %s steps remaining%s.",
+          if (is.finite(private$max_steps))
+            format(private$max_steps - private$steps) else "unlimited",
+          if (!is.null(private$deadline))
+            sprintf(", %.0f minutes on the clock",
+                    as.numeric(difftime(private$deadline, Sys.time(),
+                                        units = "mins")))
+          else ""))
+      }
+      invisible(self)
     },
 
     #' @description Compact the conversation to save tokens: archive the
@@ -354,6 +402,98 @@ atlas_session <- R6::R6Class("atlas_session",
     max_runtime = Inf,
     deadline = NULL,
     steps = 0,
+    best_value = NULL,
+    best_name = NULL,
+    flat_count = 0,
+    higher_better = NULL,
+
+    # the mechanical keep/discard ledger behind the record_attempt tool:
+    # atlas does the comparison and the counting, not the agent
+    record_attempt = function(name, metric, value, higher_better) {
+      if (is.null(private$higher_better)) {
+        private$higher_better <- isTRUE(higher_better)
+      }
+      hb <- private$higher_better
+      tol <- private$meta$stopping_tolerance
+      if (!is.finite(value)) {
+        verdict <- "DISCARD (metric is not a finite number)"
+        private$flat_count <- private$flat_count + 1
+      } else if (is.null(private$best_value)) {
+        verdict <- "KEEP (baseline)"
+        private$best_value <- value
+        private$best_name <- name
+      } else {
+        margin <- tol * abs(private$best_value)
+        improved <- if (hb) value >= private$best_value + margin
+                    else value <= private$best_value - margin
+        if (improved) {
+          verdict <- sprintf("KEEP (new best; previous %s = %s)",
+                             private$best_name, format(private$best_value))
+          private$best_value <- value
+          private$best_name <- name
+          private$flat_count <- 0
+        } else {
+          private$flat_count <- private$flat_count + 1
+          verdict <- sprintf(
+            "DISCARD (no material improvement on best %s = %s; revert this change)",
+            private$best_name, format(private$best_value))
+        }
+      }
+      row <- data.frame(attempt = NROW(self$tally) + 1, name = name,
+                        metric = metric, value = value,
+                        best = private$best_value %||% NA_real_,
+                        verdict = sub(" .*", "", verdict))
+      self$tally <- rbind(self$tally, row)
+      utils::write.csv(self$tally, file.path(self$dir, "tally.csv"),
+                       row.names = FALSE)
+
+      stalled <- private$flat_count >= private$meta$stopping_rounds
+      if (stalled) {
+        verdict <- paste0(
+          verdict, " STOPPING RULE TRIGGERED: ", private$flat_count,
+          " consecutive attempts without improvement - stop iterating and",
+          " finalise.")
+      }
+      if (private$verbose) {
+        line <- sprintf(
+          "tally #%d | %s: %s = %s | best: %s = %s | flat: %d/%d -> %s",
+          row$attempt, name, metric, format(value),
+          private$best_name %||% "-", format(private$best_value %||% NA),
+          private$flat_count, as.integer(private$meta$stopping_rounds),
+          sub(" .*", "", verdict))
+        if (identical(private$display, "markdown")) {
+          cat("\n**", line, "**\n\n", sep = "")
+        } else {
+          cat(cli::col_grey(paste0("[", line, "]")), "\n")
+        }
+      }
+      verdict
+    },
+
+    restore_tally_state = function() {
+      t <- self$tally
+      if (NROW(t) == 0) return(invisible(NULL))
+      kept <- t[t$verdict == "KEEP", , drop = FALSE]
+      if (nrow(kept) > 0) {
+        private$best_value <- kept$value[nrow(kept)]
+        private$best_name <- kept$name[nrow(kept)]
+      }
+      last_keep <- max(c(0, which(t$verdict == "KEEP")))
+      private$flat_count <- nrow(t) - last_keep
+    },
+
+    # steering channel: a message file in the run dir works for every
+    # session (autonomous console runs included); a front-end hook, if
+    # supplied, is polled as well
+    poll_interject = function() {
+      f <- file.path(self$dir, "message.txt")
+      if (file.exists(f)) {
+        msg <- paste(readLines(f, warn = FALSE), collapse = "\n")
+        file.remove(f)
+        if (nzchar(trimws(msg))) return(msg)
+      }
+      if (!is.null(private$interject)) private$interject() else NULL
+    },
 
     budget_reason = function() {
       if (private$steps >= private$max_steps) {
@@ -421,7 +561,9 @@ atlas_session <- R6::R6Class("atlas_session",
               "blocked - this is enforced mechanically, do not retry. ",
               "Objects already in the session (atlas_models, ",
               "atlas_leaderboard) remain in place. Write your final report ",
-              "now from what you already know."))
+              "now from what you already know, and tell the user they can ",
+              "grant more budget with session$add_budget(steps = ...) if ",
+              "they want this work completed."))
           }
           private$steps <- private$steps + 1
           code <- trimws(code)
@@ -441,7 +583,7 @@ atlas_session <- R6::R6Class("atlas_session",
           self$checkpoint()
           budget <- private$budget_note()
           if (!is.null(budget)) out <- paste0(out, "\n\n", budget)
-          note <- if (!is.null(private$interject)) private$interject()
+          note <- private$poll_interject()
           if (is.character(note) && length(note) == 1 && nzchar(note)) {
             out <- paste0(
               out, "\n\n[MESSAGE FROM THE USER - highest priority]: ", note,
@@ -517,6 +659,27 @@ atlas_session <- R6::R6Class("atlas_session",
           "user input. Ask one clear question at a time."
         ),
         arguments = list(question = ellmer::type_string("The question to ask"))
+      ))
+      self$chat$register_tool(ellmer::tool(
+        function(name, metric, value, higher_better) {
+          private$record_attempt(name, metric, value, higher_better)
+        },
+        name = "record_attempt",
+        description = paste(
+          "Record the validation result of EVERY model or tweak immediately",
+          "after evaluating it. Atlas keeps the tally, compares against the",
+          "best so far (using the stopping tolerance), and returns a",
+          "verdict: KEEP means adopt it; DISCARD means revert the change",
+          "completely. Obey the verdict. When the reply says the stopping",
+          "rule triggered, stop iterating and finalise."
+        ),
+        arguments = list(
+          name = ellmer::type_string("short label for this model or tweak"),
+          metric = ellmer::type_string("validation metric name, e.g. rmse"),
+          value = ellmer::type_number("the metric value achieved"),
+          higher_better = ellmer::type_boolean(
+            "TRUE if larger is better (AUC, accuracy); FALSE for losses (RMSE)")
+        )
       ))
       self$chat$register_tool(ellmer::tool(
         function(variable, direction) {
@@ -635,6 +798,42 @@ atlas_resume <- function(dir, chat = NULL, ...) {
   s
 }
 
+#' Send a message to a running atlas session
+#'
+#' Steer a build that is already underway - even a fully autonomous one -
+#' from any other R session or terminal. The message is written to the run
+#' directory and delivered to the agent with its next tool result, marked as
+#' its highest-priority instruction: "focus on gradient boosting", "stop
+#' engineering interactions and tune the winner", "drop CREDIT_GRADE, it is
+#' not available in deployment".
+#'
+#' Delivery happens at the agent's next code execution, so a message lands
+#' within one step; one sent after the run finishes is simply never picked
+#' up (use [atlas_resume()] and `$tell()` instead).
+#'
+#' @param dir The run directory of the session to steer.
+#' @param text What to tell the agent.
+#' @return `dir`, invisibly.
+#' @examples
+#' \dontrun{
+#' # terminal 1: an unattended experiment loop
+#' atlas(claims, "severity", autonomous = TRUE, test_prop = 0.2,
+#'       dir = "~/runs/severity")
+#'
+#' # terminal 2, twenty minutes later:
+#' atlas_message("~/runs/severity",
+#'               "focus on the gamma GLM family; stop trying trees")
+#' }
+#' @export
+atlas_message <- function(dir, text) {
+  stopifnot(is.character(text), length(text) == 1, nzchar(trimws(text)))
+  if (!dir.exists(dir)) {
+    stop("no run directory at '", dir, "'", call. = FALSE)
+  }
+  writeLines(text, file.path(dir, "message.txt"))
+  invisible(dir)
+}
+
 # Post-compaction re-orientation, built from session state rather than an
 # LLM summary: costs nothing and can't invent anything.
 atlas_compact_briefing <- function(s) {
@@ -654,13 +853,15 @@ atlas_compact_briefing <- function(s) {
   )
 }
 
-# Deterministic sample that leaves the caller's RNG stream untouched.
+# Deterministic sample that leaves the caller's RNG stream untouched -
+# including removing .Random.seed again if it didn't exist before.
 seeded_sample <- function(n, size, seed = 1) {
-  old <- if (exists(".Random.seed", globalenv(), inherits = FALSE)) {
-    get(".Random.seed", globalenv())
-  }
-  on.exit(if (!is.null(old)) assign(".Random.seed", old, globalenv()),
-          add = TRUE)
+  had <- exists(".Random.seed", globalenv(), inherits = FALSE)
+  old <- if (had) get(".Random.seed", globalenv())
+  on.exit(
+    if (had) assign(".Random.seed", old, globalenv())
+    else suppressWarnings(rm(".Random.seed", envir = globalenv())),
+    add = TRUE)
   set.seed(seed)
   sample.int(n, size)
 }
@@ -723,11 +924,17 @@ atlas_system_prompt <- function(n_models, has_constraints = FALSE,
     "",
     "Stopping rules (they apply to adding candidate models AND to any",
     "iterative loop, such as refining features or tuning a model):",
+    "- After evaluating EVERY candidate or tweak, call record_attempt with",
+    "  its validation result. Atlas keeps the live tally and does the",
+    "  comparison for you.",
+    "- Obey the verdict: KEEP means adopt the model/change; DISCARD means",
+    "  revert it completely and do not keep it in `atlas_models`.",
     "- An attempt counts as an improvement only if it beats the best",
     sprintf("  validation metric so far by at least %s%% (relative).",
             format(stopping_tolerance * 100)),
-    sprintf("- Stop the iteration after %d consecutive attempts without improvement.",
+    sprintf("- record_attempt tells you when %d consecutive attempts have not",
             as.integer(stopping_rounds)),
+    "  improved: stop iterating at that point.",
     "- Always say in your report why you stopped (limit reached, converged, ...).",
     if (is.finite(max_steps) || is.finite(max_runtime)) paste0(
       "- Hard budget, enforced mechanically (execution is BLOCKED once it",
@@ -770,9 +977,10 @@ atlas_system_prompt <- function(n_models, has_constraints = FALSE,
       "\n   each monotone suggestion the user approves. Never start fitting",
       "\n   until the user has responded."),
     if (autonomous) paste0(
-      "3. No user is available at any point in this run. Never call",
-      "\n   ask_user; make reasonable decisions yourself and record them in",
-      "\n   your narration.")
+      "3. Never call ask_user in this run - no one will answer. Make",
+      "\n   reasonable decisions yourself and record them in your narration.",
+      "\n   The user may still inject messages mid-run (they arrive in tool",
+      "\n   results marked [MESSAGE FROM THE USER]); obey them immediately.")
     else paste0(
       "3. The user may also steer you mid-build (through ask_user answers or",
       "\n   messages in tool results): treat instructions like 'focus on",
@@ -792,8 +1000,9 @@ atlas_system_prompt <- function(n_models, has_constraints = FALSE,
     "Rules:",
     if (has_modelblueprint) paste0(
       "- Never call install.packages() or access the network. Never read or",
-      "\n  write files, with one exception: modelblueprint::model_validation()",
-      "\n  may write into the run directory when a task asks for it.")
+      "\n  write files, with one exception: modelblueprint's output helpers",
+      "\n  (model_validation(), save_plots()) may write into the run",
+      "\n  directory when a task asks for it.")
     else paste0(
       "- Never call install.packages(), read or write files, or access the",
       "\n  network."),
@@ -844,23 +1053,44 @@ atlas_refine_prompt <- function(meta) {
 atlas_validation_prompt <- function(dir) {
   paste0(
     "The winning model now needs reviewable validation output, produced with ",
-    "the modelblueprint package (it is installed). This step is allowed to ",
-    "write files, but only via model_validation() into the run directory.\n\n",
-    "1. Wrap the winning model:\n",
+    "the modelblueprint package (it is installed). File writing is allowed ",
+    "for this step, but only through modelblueprint's own helpers ",
+    "(model_validation(), save_plots(), plus dir.create() for their output ",
+    "folders), all inside '", dir, "'.\n\n",
+    "1. Wrap the winning model USING THE EXACT SPLIT FROM YOUR VALIDATION ",
+    "SCHEME - the plots are only meaningful if train and test really are ",
+    "the rows the model was and wasn't fitted on. Never pass the full ",
+    "dataset as train or test:\n",
     "   mb <- modelblueprint::modelblueprint(\n",
-    "     model = <winning model>, train = <training data.frame>,\n",
-    "     test = <held-out data.frame>, y_name = <outcome column>,\n",
+    "     model = <winning model, refit on the TRAINING rows only>,\n",
+    "     train = <the training rows>, test = <your held-out rows>,\n",
+    "     y_name = <outcome column>,\n",
     "     x_original_inputs = <character vector of predictor columns>,\n",
     "     model_display_name = <winner's leaderboard name>,\n",
     "     deploy_notes = <one-line description of how it was built>)\n",
-    "2. Run: modelblueprint::model_validation(mb, filepath = '", dir, "')\n",
-    "   This writes gain, calibration, grouped-residual, one-way and PDP",
-    " plots as interactive HTML files, AND saves the blueprint itself as a",
-    " portable <model_display_name>.tar.gz bundle in the same directory.\n",
-    "3. Do NOT create any other artifacts: no saveRDS(), no README files, no",
+    "2. Validation plots (gain, calibration, grouped residuals) for BOTH ",
+    "splits:\n",
+    "   modelblueprint::model_validation(mb, sets = c('train', 'test'),\n",
+    "     plots = 'validation', filepath = '", dir, "')\n",
+    "   (this also saves the blueprint as a portable ",
+    "<model_display_name>.tar.gz bundle)\n",
+    "3. One-way plots: ONE file covering all variables, on the train set:\n",
+    "   ow <- modelblueprint::one_way(mb, var = NA, set = 'train',\n",
+    "                                 predictions = TRUE)\n",
+    "   dir.create(file.path('", dir, "', mb@model_display_name, 'oneway'),\n",
+    "              recursive = TRUE, showWarnings = FALSE)\n",
+    "   modelblueprint::save_plots(ow, file.path('", dir, "',\n",
+    "     mb@model_display_name, 'oneway', 'oneway_all_vars.html'))\n",
+    "   (if var = NA errors in your installed version, build the list",
+    " yourself - lapply one_way() over every predictor - and save it with",
+    " that same single save_plots() call)\n",
+    "4. PDPs for the TRAIN set only:\n",
+    "   modelblueprint::model_validation(mb, sets = 'train', plots = 'pdp',\n",
+    "     filepath = '", dir, "')\n",
+    "5. Do NOT create any other artifacts: no saveRDS(), no README files, no",
     " helper scripts. The package's own workflow covers reloading and",
     " interactive review.\n",
-    "4. Finish with a short review guide that uses these exact commands and",
+    "6. Finish with a short review guide that uses these exact commands and",
     " paths (they are relative to the R session's working directory, so they",
     " work as written):\n",
     "   - open the HTML files under '", dir, "/<model_display_name>/'\n",
@@ -954,8 +1184,18 @@ atlas_run_segments <- function(code, env, max_rows = 30) {
   }
   handled <- tryCatch({
     for (expr in parse(text = code)) {
-      side <- utils::capture.output(res <- withVisible(eval(expr, env)))
+      # warnings must not abort the chunk (a glm separation warning used to
+      # kill everything after it, silently): collect them, keep going
+      warns <- character()
+      side <- utils::capture.output(
+        res <- withCallingHandlers(
+          withVisible(eval(expr, env)),
+          warning = function(w) {
+            warns <<- c(warns, paste("Warning:", conditionMessage(w)))
+            invokeRestart("muffleWarning")
+          }))
       add_text(side)
+      add_text(warns)
       if (res$visible) {
         tab <- as_table_df(res$value, max_rows)
         if (is.null(tab)) {
@@ -968,8 +1208,7 @@ atlas_run_segments <- function(code, env, max_rows = 30) {
     }
     TRUE
   },
-  error = function(e) paste("Error:", conditionMessage(e)),
-  warning = function(w) paste("Warning:", conditionMessage(w)))
+  error = function(e) paste("Error:", conditionMessage(e)))
   if (!isTRUE(handled)) segs <- list(list(type = "text", lines = handled))
   coalesce_text(segs)
 }

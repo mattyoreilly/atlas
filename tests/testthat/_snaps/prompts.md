@@ -12,9 +12,15 @@
       
       Stopping rules (they apply to adding candidate models AND to any
       iterative loop, such as refining features or tuning a model):
+      - After evaluating EVERY candidate or tweak, call record_attempt with
+        its validation result. Atlas keeps the live tally and does the
+        comparison for you.
+      - Obey the verdict: KEEP means adopt the model/change; DISCARD means
+        revert it completely and do not keep it in `atlas_models`.
       - An attempt counts as an improvement only if it beats the best
         validation metric so far by at least 5% (relative).
-      - Stop the iteration after 3 consecutive attempts without improvement.
+      - record_attempt tells you when 3 consecutive attempts have not
+        improved: stop iterating at that point.
       - Always say in your report why you stopped (limit reached, converged, ...).
       
       
@@ -57,8 +63,9 @@
       
       Rules:
       - Never call install.packages() or access the network. Never read or
-        write files, with one exception: modelblueprint::model_validation()
-        may write into the run directory when a task asks for it.
+        write files, with one exception: modelblueprint's output helpers
+        (model_validation(), save_plots()) may write into the run
+        directory when a task asks for it.
       - Prefer base R; check optional packages with requireNamespace() and fall
         back gracefully if missing.
       - Keep each code chunk small; inspect output before continuing.
@@ -83,9 +90,15 @@
       
       Stopping rules (they apply to adding candidate models AND to any
       iterative loop, such as refining features or tuning a model):
+      - After evaluating EVERY candidate or tweak, call record_attempt with
+        its validation result. Atlas keeps the live tally and does the
+        comparison for you.
+      - Obey the verdict: KEEP means adopt the model/change; DISCARD means
+        revert it completely and do not keep it in `atlas_models`.
       - An attempt counts as an improvement only if it beats the best
         validation metric so far by at least 5% (relative).
-      - Stop the iteration after 3 consecutive attempts without improvement.
+      - record_attempt tells you when 3 consecutive attempts have not
+        improved: stop iterating at that point.
       - Always say in your report why you stopped (limit reached, converged, ...).
       
       
@@ -128,8 +141,9 @@
       
       Rules:
       - Never call install.packages() or access the network. Never read or
-        write files, with one exception: modelblueprint::model_validation()
-        may write into the run directory when a task asks for it.
+        write files, with one exception: modelblueprint's output helpers
+        (model_validation(), save_plots()) may write into the run
+        directory when a task asks for it.
       - Prefer base R; check optional packages with requireNamespace() and fall
         back gracefully if missing.
       - Keep each code chunk small; inspect output before continuing.

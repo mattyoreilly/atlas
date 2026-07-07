@@ -77,26 +77,42 @@ Every run walks the same six stages, and you hold the pen at stage 2:
 
 1.  **Explore** - dimensions, types, missingness, the outcome’s
     distribution; automatic leakage screening.
+
 2.  **Plan, then stop for you** - candidate families matched to the
     outcome’s distribution, a validation scheme, suggested monotone
     constraints. Approval is a conversation: whatever you type is folded
     into the plan.
+
 3.  **Build** - up to `n_models` candidates, compared on held-out data.
+    Every model and tweak is scored the moment it is evaluated: atlas
+    keeps a live tally, compares against the best so far, and answers
+    with a mechanical verdict the agent must obey - if it doesn’t
+    improve, it goes.
+
+    ``` R
+    [tally #7 | gbm_depth3: rmse = 2.412 | best: glm_gamma = 2.380 | flat: 2/8 -> DISCARD]
+    ```
+
 4.  **Refine** - the winner’s features are iterated one change at a time
     until the stopping rules call convergence.
+
 5.  **Verify** - machine-checked constraints run against every final
     model; violations trigger repair rounds.
+
 6.  **Document** - report, leaderboard, reproducible script, validation
     plots, all in the run directory.
 
 Two kinds of dial control how long this takes. The *statistical*
-stopping rules (H2O-style names) are applied by the agent:
+stopping rules (H2O-style names) run through the tally:
 `stopping_rounds` consecutive attempts without improvement end an
-iteration, and gains below `stopping_tolerance` don’t count. The
-*mechanical* budgets are enforced in code and cannot be talked past:
-after `max_steps` code executions or `max_runtime` seconds, the
-execution tool refuses to run anything more and the agent must finalise
-with what it has.
+iteration, gains below `stopping_tolerance` don’t count, and atlas does
+the counting - the tally verdict tells the agent, in so many words, when
+the rule has triggered. The *mechanical* budgets are enforced in code
+and cannot be talked past: after `max_steps` code executions or
+`max_runtime` seconds, the execution tool refuses to run anything more
+and the agent must finalise with what it has. A finished session that is
+out of budget refuses further `$tell()` calls before any tokens are
+spent - grant more explicitly with `res$session$add_budget(steps = 25)`.
 
 ## Constraints
 
@@ -141,6 +157,17 @@ res <- atlas(claims, "severity",
              test_prop = 0.2)                     # the ungameable judge
 
 res$test_leaderboard   # held-out performance, best first
+res$tally              # every attempt: KEEP / DISCARD, best-so-far
+```
+
+Autonomous doesn’t mean unreachable: steer a running build from any
+other R session or terminal, and the message reaches the agent at its
+next step as its highest-priority instruction:
+
+``` r
+
+atlas_message("~/atlas-runs/severity",
+              "focus on the gamma GLM family; stop trying trees")
 ```
 
 Long runs stay affordable: past a token budget (`compact_at`) the

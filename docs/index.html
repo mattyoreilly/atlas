@@ -95,26 +95,23 @@
 </h2>
 <p>Every run walks the same six stages, and you hold the pen at stage 2:</p>
 <ol style="list-style-type: decimal">
+<li><p><strong>Explore</strong> - dimensions, types, missingness, the outcome’s distribution; automatic leakage screening.</p></li>
+<li><p><strong>Plan, then stop for you</strong> - candidate families matched to the outcome’s distribution, a validation scheme, suggested monotone constraints. Approval is a conversation: whatever you type is folded into the plan.</p></li>
 <li>
-<strong>Explore</strong> - dimensions, types, missingness, the outcome’s distribution; automatic leakage screening.</li>
-<li>
-<strong>Plan, then stop for you</strong> - candidate families matched to the outcome’s distribution, a validation scheme, suggested monotone constraints. Approval is a conversation: whatever you type is folded into the plan.</li>
-<li>
-<strong>Build</strong> - up to <code>n_models</code> candidates, compared on held-out data.</li>
-<li>
-<strong>Refine</strong> - the winner’s features are iterated one change at a time until the stopping rules call convergence.</li>
-<li>
-<strong>Verify</strong> - machine-checked constraints run against every final model; violations trigger repair rounds.</li>
-<li>
-<strong>Document</strong> - report, leaderboard, reproducible script, validation plots, all in the run directory.</li>
+<p><strong>Build</strong> - up to <code>n_models</code> candidates, compared on held-out data. Every model and tweak is scored the moment it is evaluated: atlas keeps a live tally, compares against the best so far, and answers with a mechanical verdict the agent must obey - if it doesn’t improve, it goes.</p>
+<div class="sourceCode" id="cb4"><pre class="sourceCode R"><code class="sourceCode r"><span id="cb4-1"><a href="#cb4-1" tabindex="-1"></a>[tally <span class="co">#7 | gbm_depth3: rmse = 2.412 | best: glm_gamma = 2.380 | flat: 2/8 -&gt; DISCARD]</span></span></code></pre></div>
+</li>
+<li><p><strong>Refine</strong> - the winner’s features are iterated one change at a time until the stopping rules call convergence.</p></li>
+<li><p><strong>Verify</strong> - machine-checked constraints run against every final model; violations trigger repair rounds.</p></li>
+<li><p><strong>Document</strong> - report, leaderboard, reproducible script, validation plots, all in the run directory.</p></li>
 </ol>
-<p>Two kinds of dial control how long this takes. The <em>statistical</em> stopping rules (H2O-style names) are applied by the agent: <code>stopping_rounds</code> consecutive attempts without improvement end an iteration, and gains below <code>stopping_tolerance</code> don’t count. The <em>mechanical</em> budgets are enforced in code and cannot be talked past: after <code>max_steps</code> code executions or <code>max_runtime</code> seconds, the execution tool refuses to run anything more and the agent must finalise with what it has.</p>
+<p>Two kinds of dial control how long this takes. The <em>statistical</em> stopping rules (H2O-style names) run through the tally: <code>stopping_rounds</code> consecutive attempts without improvement end an iteration, gains below <code>stopping_tolerance</code> don’t count, and atlas does the counting - the tally verdict tells the agent, in so many words, when the rule has triggered. The <em>mechanical</em> budgets are enforced in code and cannot be talked past: after <code>max_steps</code> code executions or <code>max_runtime</code> seconds, the execution tool refuses to run anything more and the agent must finalise with what it has. A finished session that is out of budget refuses further <code>$tell()</code> calls before any tokens are spent - grant more explicitly with <code>res$session$add_budget(steps = 25)</code>.</p>
 </div>
 <div class="section level2">
 <h2 id="constraints">Constraints<a class="anchor" aria-label="anchor" href="#constraints"></a>
 </h2>
 <p>Pass hard requirements as a list. Strings are enforced through instructions; constraint objects carry a <code>check</code> function that atlas runs against every final model, feeding failures back to the agent for repair:</p>
-<div class="sourceCode" id="cb4"><pre class="downlit sourceCode r">
+<div class="sourceCode" id="cb5"><pre class="downlit sourceCode r">
 <code class="sourceCode R"><span><span class="va">res</span> <span class="op">&lt;-</span> <span class="fu"><a href="reference/atlas.html">atlas</a></span><span class="op">(</span><span class="va">mtcars</span>, <span class="st">"mpg"</span>, constraints <span class="op">=</span> <span class="fu"><a href="https://rdrr.io/r/base/list.html" class="external-link">list</a></span><span class="op">(</span></span>
 <span>  uses_wt <span class="op">=</span> <span class="fu"><a href="reference/con_uses.html">con_uses</a></span><span class="op">(</span><span class="st">"wt"</span><span class="op">)</span>,                    <span class="co"># must actually use wt</span></span>
 <span>  mono_hp <span class="op">=</span> <span class="fu"><a href="reference/con_monotone.html">con_monotone</a></span><span class="op">(</span><span class="st">"hp"</span>, <span class="st">"decreasing"</span><span class="op">)</span>,  <span class="co"># effect must be monotone</span></span>
@@ -127,21 +124,26 @@
 <h2 id="unattended-runs">Unattended runs<a class="anchor" aria-label="anchor" href="#unattended-runs"></a>
 </h2>
 <p>For hands-off experimentation - overnight, in a script, on a schedule - set <code>autonomous = TRUE</code>: the agent states its plan and proceeds instead of waiting for approval, iterating keep/discard experiments under the stopping rules. Pair it with <code>test_prop</code> to hold out rows the agent <strong>never sees</strong>; when the run ends, atlas itself evaluates every surviving model on that test set, so the final ranking can’t be gamed by overfitting the agent’s own validation scheme:</p>
-<div class="sourceCode" id="cb5"><pre class="downlit sourceCode r">
+<div class="sourceCode" id="cb6"><pre class="downlit sourceCode r">
 <code class="sourceCode R"><span><span class="va">res</span> <span class="op">&lt;-</span> <span class="fu"><a href="reference/atlas.html">atlas</a></span><span class="op">(</span><span class="va">claims</span>, <span class="st">"severity"</span>,</span>
 <span>             autonomous <span class="op">=</span> <span class="cn">TRUE</span>,</span>
 <span>             n_models <span class="op">=</span> <span class="fl">10</span>, stopping_rounds <span class="op">=</span> <span class="fl">8</span>,  <span class="co"># room to explore</span></span>
 <span>             max_steps <span class="op">=</span> <span class="fl">300</span>,                     <span class="co"># hard cap, enforced in code</span></span>
 <span>             test_prop <span class="op">=</span> <span class="fl">0.2</span><span class="op">)</span>                     <span class="co"># the ungameable judge</span></span>
 <span></span>
-<span><span class="va">res</span><span class="op">$</span><span class="va">test_leaderboard</span>   <span class="co"># held-out performance, best first</span></span></code></pre></div>
+<span><span class="va">res</span><span class="op">$</span><span class="va">test_leaderboard</span>   <span class="co"># held-out performance, best first</span></span>
+<span><span class="va">res</span><span class="op">$</span><span class="va">tally</span>              <span class="co"># every attempt: KEEP / DISCARD, best-so-far</span></span></code></pre></div>
+<p>Autonomous doesn’t mean unreachable: steer a running build from any other R session or terminal, and the message reaches the agent at its next step as its highest-priority instruction:</p>
+<div class="sourceCode" id="cb7"><pre class="downlit sourceCode r">
+<code class="sourceCode R"><span><span class="fu"><a href="reference/atlas_message.html">atlas_message</a></span><span class="op">(</span><span class="st">"~/atlas-runs/severity"</span>,</span>
+<span>              <span class="st">"focus on the gamma GLM family; stop trying trees"</span><span class="op">)</span></span></code></pre></div>
 <p>Long runs stay affordable: past a token budget (<code>compact_at</code>) the conversation is compacted - transcript archived to disk, context cleared, agent re-oriented from session state at no extra LLM cost - and every results object reports the session’s total dollar <code>cost</code>. See <code><a href="articles/autonomous.html">vignette("autonomous")</a></code>.</p>
 </div>
 <div class="section level2">
 <h2 id="sessions">Sessions<a class="anchor" aria-label="anchor" href="#sessions"></a>
 </h2>
 <p><code><a href="reference/atlas.html">atlas()</a></code> is a one-call wrapper around an <code>atlas_session</code>, which lives in the run directory as much as in memory: data, code log, conversation, and artifacts (report, leaderboard, models, validation plots) are all on disk, so sessions survive anything:</p>
-<div class="sourceCode" id="cb6"><pre class="downlit sourceCode r">
+<div class="sourceCode" id="cb8"><pre class="downlit sourceCode r">
 <code class="sourceCode R"><span><span class="va">s</span> <span class="op">&lt;-</span> <span class="fu"><a href="reference/atlas_resume.html">atlas_resume</a></span><span class="op">(</span><span class="st">".atlas/20260703-141500"</span><span class="op">)</span></span>
 <span><span class="va">s</span><span class="op">$</span><span class="fu">tell</span><span class="op">(</span><span class="st">"swap the elastic net for a GAM and re-compare"</span><span class="op">)</span></span></code></pre></div>
 <p>Runs land in <code>.atlas/&lt;timestamp&gt;</code> by default; set <code>options(atlas.dir = "~/atlas-runs")</code> to choose. See <code><a href="articles/sessions.html">vignette("sessions")</a></code>.</p>

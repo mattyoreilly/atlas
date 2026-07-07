@@ -116,6 +116,14 @@ test_that("build() requests modelblueprint validation for the winner", {
   expect_match(chat$log[2], "modelblueprint::model_validation")
   expect_match(chat$log[2], dir, fixed = TRUE)
   expect_match(chat$log[2], "x_original_inputs")
+  # plots must reflect the real modeling split, not the full data
+  expect_match(chat$log[2], "EXACT SPLIT")
+  expect_match(chat$log[2], "Never pass the full")
+  expect_match(chat$log[2], "sets = c\\('train', 'test'\\)")
+  # a single one-way file for all vars, and train-only PDPs
+  expect_match(chat$log[2], "var = NA")
+  expect_match(chat$log[2], "oneway_all_vars.html")
+  expect_match(chat$log[2], "sets = 'train', plots = 'pdp'")
   # the canonical persistence workflow, not ad-hoc saveRDS/READMEs
   expect_match(chat$log[2], "loadmb")
   expect_match(chat$log[2], "mb_dashboard")

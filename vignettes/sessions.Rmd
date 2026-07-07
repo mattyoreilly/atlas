@@ -40,22 +40,37 @@ s$results()                      # assemble a fresh results object
 Every results object carries its live session as `res$session`, so a
 follow-up is never more than one call away.
 
+One semantic worth internalising: **a results object is a snapshot, the
+session is live**. `results()` copies the models, leaderboards, and tally
+into a plain list at the moment you call it; nothing in that list updates
+when the session moves on. After a follow-up changes the models, refresh:
+
+```{r}
+res$session$tell("remove the worst predictor and re-evaluate")
+res <- res$session$results()   # new snapshot: updated models, leaderboards
+```
+
 ## What's on disk
 
 Each session owns a run directory - by default a timestamped folder under
 `getOption("atlas.dir", ".atlas")`; set that option once, or pass `dir`
 per run.
 
-| file              | contents                                            |
-|-------------------|-----------------------------------------------------|
-| `data.rds`        | the training data, so a resume works cold           |
-| `meta.rds`        | outcome, stopping rules, goal, constraints          |
-| `code.R`          | every chunk the agent ran - a readable script       |
-| `code.rds`        | the same chunks, exactly as recorded, for replay    |
-| `turns.rds`       | the full conversation                               |
-| `report.md`       | the agent's report                                  |
-| `leaderboard.csv` | validation metrics per model                        |
-| `models.rds`      | the fitted models                                   |
+| file                   | contents                                        |
+|------------------------|-------------------------------------------------|
+| `data.rds`             | the training data, so a resume works cold       |
+| `test.rds`             | the protected test rows (when `test_prop > 0`)  |
+| `meta.rds`             | outcome, stopping rules, goal, constraints      |
+| `code.R`               | every chunk the agent ran - a readable script   |
+| `code.rds`             | the same chunks, exactly as recorded, for replay|
+| `turns.rds`            | the current conversation window                 |
+| `turns-archive-*.rds`  | compacted-away conversation history             |
+| `tally.csv`            | the attempt ledger: KEEP / DISCARD per attempt  |
+| `report.md`            | the agent's report                              |
+| `leaderboard.csv`      | validation metrics per model                    |
+| `test_leaderboard.csv` | held-out test metrics (when `test_prop > 0`)    |
+| `models.rds`           | the fitted models                               |
+| `message.txt`          | a pending [atlas_message()] not yet delivered   |
 
 Checkpoints are written after every tool call and every reply, so at worst
 a crash loses the single in-flight step. `code.R` doubles as the
@@ -89,10 +104,16 @@ s <- atlas_resume(".atlas/20260703-141500")
 s$tell("stop trying tree models; the deployment target only supports GLMs")
 ```
 
-Programmatic front-ends get a cleaner hook: the `interject` constructor
-argument, a `function()` polled after every tool call. Return a message to
-have it delivered with the agent's next tool result, marked as the
-highest-priority instruction; return `NULL` when there is nothing to say.
+You can also steer without interrupting at all: `atlas_message(dir, text)`
+writes a message into the run directory from any other R session or
+terminal, and it is delivered with the agent's next code execution, marked
+as its highest-priority instruction. This works for every session,
+autonomous ones included.
+
+Programmatic front-ends get a lower-level hook too: the `interject`
+constructor argument, a `function()` polled after every tool call. Return a
+message to have it delivered the same way; return `NULL` when there is
+nothing to say.
 
 ## Staying inside the token budget
 

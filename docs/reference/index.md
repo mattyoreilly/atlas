@@ -11,6 +11,8 @@ run back up.
   : A persistent, resumable model-building session
 - [`atlas_resume()`](https://mattyoreilly.github.io/Atlas/reference/atlas_resume.md)
   : Resume a session from its run directory
+- [`atlas_message()`](https://mattyoreilly.github.io/Atlas/reference/atlas_message.md)
+  : Send a message to a running atlas session
 
 ## Domain knowledge
 

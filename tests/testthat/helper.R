@@ -61,7 +61,9 @@ real_chat <- function() {
 }
 
 temp_dir <- function() {
-  file.path(tempdir(), paste0("atlas-", as.integer(stats::runif(1, 1, 1e9))))
+  # tempfile() guarantees uniqueness; runif() does not once something has
+  # touched the RNG seed
+  tempfile("atlas-")
 }
 
 new_session <- function(dir = temp_dir(), chat = real_chat(), ...) {

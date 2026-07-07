@@ -40,7 +40,15 @@
     </div>
 
     <div class="section level2">
-<h2 class="pkg-version" data-toc-text="0.1.0" id="atlas-010">Atlas 0.1.0<a class="anchor" aria-label="anchor" href="#atlas-010"></a></h2>
+<h2 class="pkg-version" data-toc-text="development version" id="atlas-development-version">atlas (development version)<a class="anchor" aria-label="anchor" href="#atlas-development-version"></a></h2>
+<ul><li><p>New <code>$add_budget(steps, seconds)</code>: explicitly extend an exhausted session’s mechanical budget; the extension persists for resumes.</p></li>
+<li><p><code>$tell()</code> on an out-of-budget session now fails fast in R - nothing is sent to the LLM - with the remedy in the error message.</p></li>
+<li><p>Fixed: a warning inside an agent code chunk (e.g. <code>glm.fit: fitted probabilities numerically 0 or 1 occurred</code>) aborted the rest of the chunk, so later statements - including the <code>atlas_models</code> assignment - silently never ran. Warnings are now collected into the output and execution continues, matching console behaviour.</p></li>
+<li><p>New <code>record_attempt</code> agent tool: atlas keeps a live, mechanical tally of every model/tweak the agent evaluates - printed as a one-line scoreboard, compared against the best so far with <code>stopping_tolerance</code>, answered with a KEEP/DISCARD verdict, and counted toward <code>stopping_rounds</code> (the agent is told, in code-verified terms, when the stopping rule triggers). The tally persists to <code>tally.csv</code> and is returned as <code>res$tally</code>.</p></li>
+<li><p>New <code>atlas_message(dir, text)</code>: steer any running session - including fully autonomous ones - from another R session or terminal. The message is delivered with the agent’s next code execution as its highest-priority instruction.</p></li>
+</ul></div>
+    <div class="section level2">
+<h2 class="pkg-version" data-toc-text="0.1.0" id="atlas-010">atlas 0.1.0<a class="anchor" aria-label="anchor" href="#atlas-010"></a></h2>
 <p>Initial release.</p>
 <ul><li>
 <code><a href="../reference/atlas.html">atlas()</a></code> builds up to <code>n_models</code> candidate models with an LLM agent: distribution-driven planning, plan approval, held-out comparison, feature refinement of the winner, and a written report. Stopping is controlled by <code>patience</code> and <code>min_improve</code>.</li>
@@ -49,7 +57,8 @@
 <li>Persistent sessions: <code>AtlasSession</code> checkpoints every code chunk and conversation turn to a run directory; <code><a href="../reference/atlas_resume.html">atlas_resume()</a></code> reconstructs a session exactly by replaying the code log. Builds can be interrupted and steered mid-run (<code>interject</code>).</li>
 <li>Optional extras: a point-and-click front-end (<code><a href="../reference/atlas_app.html">atlas_app()</a></code>, requires ‘shiny’) and a validation workup for the winning model (requires ‘modelblueprint’).</li>
 </ul></div>
-  </main></div>
+  </main><aside class="col-md-3"><nav id="toc" aria-label="Table of contents"><h2>On this page</h2>
+    </nav></aside></div>
 
 
     <footer><div class="pkgdown-footer-left">

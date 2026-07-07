@@ -45,6 +45,11 @@ s <- atlas_resume(".atlas/20260703-141500")
 
     \item{\code{test_data}}{Held-out test rows (when \code{test_prop > 0}); never
 placed in the agent's environment.}
+
+    \item{\code{tally}}{Live experiment tally: one row per recorded attempt
+(\code{attempt}, \code{name}, \code{metric}, \code{value}, \code{best}, \code{verdict}), kept by
+atlas from the agent's \code{record_attempt} calls and persisted to
+\code{tally.csv} in the run directory.}
   }
   \if{html}{\out{</div>}}
 }
@@ -56,6 +61,7 @@ placed in the agent's environment.}
     \item \href{#method-atlas_session-check}{\code{atlas_session$check()}}
     \item \href{#method-atlas_session-tell}{\code{atlas_session$tell()}}
     \item \href{#method-atlas_session-results}{\code{atlas_session$results()}}
+    \item \href{#method-atlas_session-add_budget}{\code{atlas_session$add_budget()}}
     \item \href{#method-atlas_session-compact}{\code{atlas_session$compact()}}
     \item \href{#method-atlas_session-checkpoint}{\code{atlas_session$checkpoint()}}
     \item \href{#method-atlas_session-print}{\code{atlas_session$print()}}
@@ -257,6 +263,30 @@ report, and the full code trail.
     An object of class \code{atlas}: list with \code{models} (named list of
 fitted models), \code{leaderboard} (data.frame of validation metrics),
 \code{report} (markdown), \code{code}, \code{dir}, and \code{session} (this object).
+  }
+}
+
+\if{html}{\out{<hr>}}
+\if{html}{\out{<a id="method-atlas_session-add_budget"></a>}}
+\if{latex}{\out{\hypertarget{method-atlas_session-add_budget}{}}}
+\subsection{\code{atlas_session$add_budget()}}{
+  Grant the agent more mechanical budget. The hard caps
+(\code{max_steps}, \code{max_runtime}) protect unattended runs, but they also
+bind follow-up \verb{$tell()} calls on a finished session - top the
+budget up explicitly when you want more work done:
+\code{res$session$add_budget(steps = 25)}.
+  \subsection{Usage}{
+    \if{html}{\out{<div class="r">}}
+    \preformatted{atlas_session$add_budget(steps = 0, seconds = 0)}
+    \if{html}{\out{</div>}}
+  }
+  \subsection{Arguments}{
+    \if{html}{\out{<div class="arguments">}}
+    \describe{
+      \item{\code{steps}}{Additional code executions to allow.}
+      \item{\code{seconds}}{Additional wall-clock seconds to allow.}
+    }
+    \if{html}{\out{</div>}}
   }
 }
 

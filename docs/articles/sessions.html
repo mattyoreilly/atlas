@@ -94,6 +94,14 @@ the R environment the agent works in, and the run directory:</p>
 <p>Every results object carries its live session as
 <code>res$session</code>, so a follow-up is never more than one call
 away.</p>
+<p>One semantic worth internalising: <strong>a results object is a
+snapshot, the session is live</strong>. <code>results()</code> copies
+the models, leaderboards, and tally into a plain list at the moment you
+call it; nothing in that list updates when the session moves on. After a
+follow-up changes the models, refresh:</p>
+<div class="sourceCode" id="cb2"><pre class="downlit sourceCode r">
+<code class="sourceCode R"><span><span class="va">res</span><span class="op">$</span><span class="va">session</span><span class="op">$</span><span class="fu">tell</span><span class="op">(</span><span class="st">"remove the worst predictor and re-evaluate"</span><span class="op">)</span></span>
+<span><span class="va">res</span> <span class="op">&lt;-</span> <span class="va">res</span><span class="op">$</span><span class="va">session</span><span class="op">$</span><span class="fu">results</span><span class="op">(</span><span class="op">)</span>   <span class="co"># new snapshot: updated models, leaderboards</span></span></code></pre></div>
 </div>
 <div class="section level2">
 <h2 id="whats-on-disk">What’s on disk<a class="anchor" aria-label="anchor" href="#whats-on-disk"></a>
@@ -103,8 +111,8 @@ under <code>getOption("atlas.dir", ".atlas")</code>; set that option
 once, or pass <code>dir</code> per run.</p>
 <table class="table">
 <colgroup>
-<col width="26%">
-<col width="73%">
+<col width="32%">
+<col width="67%">
 </colgroup>
 <thead><tr class="header">
 <th>file</th>
@@ -116,32 +124,52 @@ once, or pass <code>dir</code> per run.</p>
 <td>the training data, so a resume works cold</td>
 </tr>
 <tr class="even">
+<td><code>test.rds</code></td>
+<td>the protected test rows (when <code>test_prop &gt; 0</code>)</td>
+</tr>
+<tr class="odd">
 <td><code>meta.rds</code></td>
 <td>outcome, stopping rules, goal, constraints</td>
 </tr>
-<tr class="odd">
+<tr class="even">
 <td><code>code.R</code></td>
 <td>every chunk the agent ran - a readable script</td>
 </tr>
-<tr class="even">
+<tr class="odd">
 <td><code>code.rds</code></td>
 <td>the same chunks, exactly as recorded, for replay</td>
 </tr>
-<tr class="odd">
+<tr class="even">
 <td><code>turns.rds</code></td>
-<td>the full conversation</td>
+<td>the current conversation window</td>
+</tr>
+<tr class="odd">
+<td><code>turns-archive-*.rds</code></td>
+<td>compacted-away conversation history</td>
 </tr>
 <tr class="even">
+<td><code>tally.csv</code></td>
+<td>the attempt ledger: KEEP / DISCARD per attempt</td>
+</tr>
+<tr class="odd">
 <td><code>report.md</code></td>
 <td>the agent’s report</td>
 </tr>
-<tr class="odd">
+<tr class="even">
 <td><code>leaderboard.csv</code></td>
 <td>validation metrics per model</td>
+</tr>
+<tr class="odd">
+<td><code>test_leaderboard.csv</code></td>
+<td>held-out test metrics (when <code>test_prop &gt; 0</code>)</td>
 </tr>
 <tr class="even">
 <td><code>models.rds</code></td>
 <td>the fitted models</td>
+</tr>
+<tr class="odd">
+<td><code>message.txt</code></td>
+<td>a pending [atlas_message()] not yet delivered</td>
 </tr>
 </tbody>
 </table>
@@ -153,7 +181,7 @@ run without Atlas - or an API key.</p>
 <div class="section level2">
 <h2 id="resuming">Resuming<a class="anchor" aria-label="anchor" href="#resuming"></a>
 </h2>
-<div class="sourceCode" id="cb2"><pre class="downlit sourceCode r">
+<div class="sourceCode" id="cb3"><pre class="downlit sourceCode r">
 <code class="sourceCode R"><span><span class="va">s</span> <span class="op">&lt;-</span> <span class="fu"><a href="../reference/atlas_resume.html">atlas_resume</a></span><span class="op">(</span><span class="st">".atlas/20260703-141500"</span><span class="op">)</span></span>
 <span><span class="va">s</span><span class="op">$</span><span class="fu">tell</span><span class="op">(</span><span class="st">"continue where you left off"</span><span class="op">)</span></span></code></pre></div>
 <p><code><a href="../reference/atlas_resume.html">atlas_resume()</a></code> reloads the data, replays the recorded
@@ -170,16 +198,20 @@ take minutes to fit takes those minutes again.</p>
 with <code>Ctrl+C</code> / <code>Esc</code>, then resume with the new
 information - the work up to the interruption was already
 checkpointed:</p>
-<div class="sourceCode" id="cb3"><pre class="downlit sourceCode r">
+<div class="sourceCode" id="cb4"><pre class="downlit sourceCode r">
 <code class="sourceCode R"><span><span class="va">res</span> <span class="op">&lt;-</span> <span class="fu"><a href="../reference/atlas.html">atlas</a></span><span class="op">(</span><span class="va">big_data</span>, <span class="st">"claim_cost"</span><span class="op">)</span>   <span class="co"># Ctrl+C mid-build...</span></span>
 <span></span>
 <span><span class="va">s</span> <span class="op">&lt;-</span> <span class="fu"><a href="../reference/atlas_resume.html">atlas_resume</a></span><span class="op">(</span><span class="st">".atlas/20260703-141500"</span><span class="op">)</span></span>
 <span><span class="va">s</span><span class="op">$</span><span class="fu">tell</span><span class="op">(</span><span class="st">"stop trying tree models; the deployment target only supports GLMs"</span><span class="op">)</span></span></code></pre></div>
-<p>Programmatic front-ends get a cleaner hook: the
+<p>You can also steer without interrupting at all:
+<code>atlas_message(dir, text)</code> writes a message into the run
+directory from any other R session or terminal, and it is delivered with
+the agent’s next code execution, marked as its highest-priority
+instruction. This works for every session, autonomous ones included.</p>
+<p>Programmatic front-ends get a lower-level hook too: the
 <code>interject</code> constructor argument, a <code>function()</code>
-polled after every tool call. Return a message to have it delivered with
-the agent’s next tool result, marked as the highest-priority
-instruction; return <code>NULL</code> when there is nothing to say.</p>
+polled after every tool call. Return a message to have it delivered the
+same way; return <code>NULL</code> when there is nothing to say.</p>
 </div>
 <div class="section level2">
 <h2 id="staying-inside-the-token-budget">Staying inside the token budget<a class="anchor" aria-label="anchor" href="#staying-inside-the-token-budget"></a>
@@ -199,7 +231,7 @@ leaderboard, the number of code chunks run. Because the briefing is
 assembled deterministically from session state, it costs no extra LLM
 call and cannot hallucinate, unlike a model-written summary.</p>
 <p>You can also compact by hand before a long follow-up:</p>
-<div class="sourceCode" id="cb4"><pre class="downlit sourceCode r">
+<div class="sourceCode" id="cb5"><pre class="downlit sourceCode r">
 <code class="sourceCode R"><span><span class="va">res</span><span class="op">$</span><span class="va">session</span><span class="op">$</span><span class="fu">compact</span><span class="op">(</span><span class="op">)</span></span>
 <span><span class="va">res</span><span class="op">$</span><span class="va">session</span><span class="op">$</span><span class="fu">tell</span><span class="op">(</span><span class="st">"now write an extended technical appendix for the report"</span><span class="op">)</span></span></code></pre></div>
 <p>Cost stays visible: <code>res$cost</code> (and the last line of

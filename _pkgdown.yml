@@ -35,6 +35,7 @@ reference:
   - atlas
   - atlas_session
   - atlas_resume
+  - atlas_message
 
 - title: Domain knowledge
   desc: >
