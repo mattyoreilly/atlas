@@ -63,8 +63,9 @@
       
       Rules:
       - Never call install.packages() or access the network. Never read or
-        write files, with one exception: modelblueprint::model_validation()
-        may write into the run directory when a task asks for it.
+        write files, with one exception: modelblueprint's output helpers
+        (model_validation(), save_plots()) may write into the run
+        directory when a task asks for it.
       - Prefer base R; check optional packages with requireNamespace() and fall
         back gracefully if missing.
       - Keep each code chunk small; inspect output before continuing.
@@ -140,8 +141,9 @@
       
       Rules:
       - Never call install.packages() or access the network. Never read or
-        write files, with one exception: modelblueprint::model_validation()
-        may write into the run directory when a task asks for it.
+        write files, with one exception: modelblueprint's output helpers
+        (model_validation(), save_plots()) may write into the run
+        directory when a task asks for it.
       - Prefer base R; check optional packages with requireNamespace() and fall
         back gracefully if missing.
       - Keep each code chunk small; inspect output before continuing.
