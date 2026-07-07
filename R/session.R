@@ -249,6 +249,12 @@ atlas_session <- R6::R6Class("atlas_session",
     #' @return The agent's reply (invisibly).
     tell = function(text, verbose = TRUE) {
       stopifnot(is.character(text), length(text) == 1)
+      reason <- private$budget_reason()
+      if (!is.null(reason)) {
+        stop("session budget exhausted (", reason, ") - nothing was sent ",
+             "to the LLM. Grant more with $add_budget(steps = , seconds = ) ",
+             "and retry.", call. = FALSE)
+      }
       private$verbose <- verbose
       if (private$context_tokens() >= private$compact_at) {
         self$compact()

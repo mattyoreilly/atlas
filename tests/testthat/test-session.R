@@ -232,6 +232,22 @@ test_that("add_budget() unblocks an exhausted session", {
   expect_equal(readRDS(file.path(dir, "meta.rds"))$max_steps, 3)
 })
 
+test_that("tell() on an exhausted session fails fast, without an LLM call", {
+  chat <- FakeChat$new()   # empty script: any message sent would error
+  s <- atlas_session$new(mtcars, "mpg", chat = chat, dir = temp_dir(),
+                         max_steps = 1)
+  s$chat$get_tools()$run_r_code("1 + 1")   # spend the budget
+
+  expect_error(s$tell("remove the worst predictor"), "budget exhausted")
+  expect_error(s$tell("remove the worst predictor"), "add_budget")
+  expect_length(chat$log, 0)               # nothing reached the model
+
+  s$add_budget(steps = 5)
+  # now the message goes through (FakeChat script exhausted = it was sent)
+  expect_error(s$tell("try again", verbose = FALSE), "script exhausted")
+  expect_length(chat$log, 1)
+})
+
 test_that("max_runtime blocks execution after the deadline", {
   s <- new_session(max_runtime = 0.01)     # expires almost immediately
   Sys.sleep(0.05)
