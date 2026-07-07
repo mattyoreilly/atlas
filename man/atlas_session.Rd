@@ -45,6 +45,11 @@ s <- atlas_resume(".atlas/20260703-141500")
 
     \item{\code{test_data}}{Held-out test rows (when \code{test_prop > 0}); never
 placed in the agent's environment.}
+
+    \item{\code{tally}}{Live experiment tally: one row per recorded attempt
+(\code{attempt}, \code{name}, \code{metric}, \code{value}, \code{best}, \code{verdict}), kept by
+atlas from the agent's \code{record_attempt} calls and persisted to
+\code{tally.csv} in the run directory.}
   }
   \if{html}{\out{</div>}}
 }

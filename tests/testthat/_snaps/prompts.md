@@ -12,9 +12,15 @@
       
       Stopping rules (they apply to adding candidate models AND to any
       iterative loop, such as refining features or tuning a model):
+      - After evaluating EVERY candidate or tweak, call record_attempt with
+        its validation result. Atlas keeps the live tally and does the
+        comparison for you.
+      - Obey the verdict: KEEP means adopt the model/change; DISCARD means
+        revert it completely and do not keep it in `atlas_models`.
       - An attempt counts as an improvement only if it beats the best
         validation metric so far by at least 5% (relative).
-      - Stop the iteration after 3 consecutive attempts without improvement.
+      - record_attempt tells you when 3 consecutive attempts have not
+        improved: stop iterating at that point.
       - Always say in your report why you stopped (limit reached, converged, ...).
       
       
@@ -83,9 +89,15 @@
       
       Stopping rules (they apply to adding candidate models AND to any
       iterative loop, such as refining features or tuning a model):
+      - After evaluating EVERY candidate or tweak, call record_attempt with
+        its validation result. Atlas keeps the live tally and does the
+        comparison for you.
+      - Obey the verdict: KEEP means adopt the model/change; DISCARD means
+        revert it completely and do not keep it in `atlas_models`.
       - An attempt counts as an improvement only if it beats the best
         validation metric so far by at least 5% (relative).
-      - Stop the iteration after 3 consecutive attempts without improvement.
+      - record_attempt tells you when 3 consecutive attempts have not
+        improved: stop iterating at that point.
       - Always say in your report why you stopped (limit reached, converged, ...).
       
       

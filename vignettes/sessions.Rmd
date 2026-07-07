@@ -89,10 +89,16 @@ s <- atlas_resume(".atlas/20260703-141500")
 s$tell("stop trying tree models; the deployment target only supports GLMs")
 ```
 
-Programmatic front-ends get a cleaner hook: the `interject` constructor
-argument, a `function()` polled after every tool call. Return a message to
-have it delivered with the agent's next tool result, marked as the
-highest-priority instruction; return `NULL` when there is nothing to say.
+You can also steer without interrupting at all: `atlas_message(dir, text)`
+writes a message into the run directory from any other R session or
+terminal, and it is delivered with the agent's next code execution, marked
+as its highest-priority instruction. This works for every session,
+autonomous ones included.
+
+Programmatic front-ends get a lower-level hook too: the `interject`
+constructor argument, a `function()` polled after every tool call. Return a
+message to have it delivered the same way; return `NULL` when there is
+nothing to say.
 
 ## Staying inside the token budget
 

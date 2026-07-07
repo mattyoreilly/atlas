@@ -133,6 +133,13 @@ print.atlas <- function(x, ...) {
     cli::cli_rule(left = "held-out test set")
     print_clean(x$test_leaderboard)
   }
+  if (is.data.frame(x$tally) && nrow(x$tally) > 0) {
+    cat("\n")
+    cli::cli_rule(left = sprintf("attempt tally (%d attempts, %d kept)",
+                                 nrow(x$tally),
+                                 sum(x$tally$verdict == "KEEP")))
+    print_clean(utils::tail(x$tally, 10))
+  }
   cst <- x$constraints
   if (is.data.frame(cst) && nrow(cst) > 0) {
     bad <- cst[!is.na(cst$passed) & !cst$passed, , drop = FALSE]
