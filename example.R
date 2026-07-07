@@ -11,8 +11,8 @@
 library(atlas)
 
 # 1. Load your data ------------------------------------------------------
-csv_path <- "path/to/your_data.csv"   # <- edit me
-outcome  <- "DEFAULTED"               # <- edit me: the column to predict
+csv_path <- "~/Desktop/Hastings/HastingsCredit/Data/app_approved_train.csv"
+outcome <- "DEFAULTED" # <- edit me: the column to predict
 
 data <- read.csv(csv_path, stringsAsFactors = TRUE)
 str(data, list.len = 25)
@@ -24,7 +24,7 @@ atlas_leakage_screen(data, outcome)
 # Columns that won't exist at prediction time in deployment (IDs,
 # post-outcome fields, decline reasons...) - they are removed before the
 # agent ever sees the data:
-exclude <- c()                        # <- e.g. c("QUOTE_DECLINE_REASON")
+exclude <- c("default_rate", "Total_Loan_Amount", "PREDICTED_LOSS", "APR") # <- e.g. c("QUOTE_DECLINE_REASON")
 
 # 3. Interactive build ----------------------------------------------------
 # The agent explores, proposes a plan, and STOPS IN THE CONSOLE for your
@@ -32,21 +32,23 @@ exclude <- c()                        # <- e.g. c("QUOTE_DECLINE_REASON")
 # Watch for the live tally lines as models and tweaks are scored:
 #   [tally #4 | gbm1: auc = 0.81 | best: glm2 = 0.79 | flat: 0/3 -> KEEP]
 res <- atlas(
-  data, outcome,
-  n_models  = 3,                      # maximum candidates
-  goal      = "prioritise interpretability",
-  exclude   = exclude,
-  test_prop = 0.2,                    # held out; agent never sees these rows
-  max_steps = 120                     # hard safety cap on code executions
+  data,
+  outcome,
+  n_models = 1, # maximum candidates
+  goal = "prioritise interpretability",
+  exclude = exclude,
+  test_prop = 0.2, # held out; agent never sees these rows
+  max_steps = 10, # hard safety cap on code executions
+  dir = "~/Desktop/Code"
 )
 
 # 4. What you got back ----------------------------------------------------
-res                    # leaderboards, tally summary, constraints, report, cost
-res$tally              # every attempt: KEEP / DISCARD, best-so-far
-res$test_leaderboard   # final ranking on the held-out rows (the one to trust)
-res$models             # fitted models: predict(res$models[[1]], newdata)
-res$dir                # run directory: report.md, code.R, tally.csv, plots
-cat(res$code, sep = "\n\n")   # the full script the agent wrote
+res # leaderboards, tally summary, constraints, report, cost
+res$tally # every attempt: KEEP / DISCARD, best-so-far
+res$test_leaderboard # final ranking on the held-out rows (the one to trust)
+res$models # fitted models: predict(res$models[[1]], newdata)
+res$dir # run directory: report.md, code.R, tally.csv, plots
+cat(res$code, sep = "\n\n") # the full script the agent wrote
 
 # The session is still live - ask it anything:
 res$session$tell("why did the winning model win?")

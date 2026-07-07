@@ -307,6 +307,38 @@ atlas_session <- R6::R6Class("atlas_session",
       )
     },
 
+    #' @description Grant the agent more mechanical budget. The hard caps
+    #'   (`max_steps`, `max_runtime`) protect unattended runs, but they also
+    #'   bind follow-up `$tell()` calls on a finished session - top the
+    #'   budget up explicitly when you want more work done:
+    #'   `res$session$add_budget(steps = 25)`.
+    #' @param steps Additional code executions to allow.
+    #' @param seconds Additional wall-clock seconds to allow.
+    add_budget = function(steps = 0, seconds = 0) {
+      stopifnot(is.numeric(steps), steps >= 0,
+                is.numeric(seconds), seconds >= 0)
+      private$max_steps <- private$max_steps + steps
+      if (seconds > 0 && !is.null(private$deadline)) {
+        private$deadline <- max(private$deadline, Sys.time()) + seconds
+        private$max_runtime <- private$max_runtime + seconds
+      }
+      private$meta$max_steps <- private$max_steps
+      private$meta$max_runtime <- private$max_runtime
+      saveRDS(private$meta, file.path(self$dir, "meta.rds"))
+      if (private$verbose) {
+        cli::cli_alert_info(sprintf(
+          "Budget extended: %s steps remaining%s.",
+          if (is.finite(private$max_steps))
+            format(private$max_steps - private$steps) else "unlimited",
+          if (!is.null(private$deadline))
+            sprintf(", %.0f minutes on the clock",
+                    as.numeric(difftime(private$deadline, Sys.time(),
+                                        units = "mins")))
+          else ""))
+      }
+      invisible(self)
+    },
+
     #' @description Compact the conversation to save tokens: archive the
     #'   transcript to the run directory, clear the context window, and
     #'   re-orient the agent with a state briefing on the next message. The
@@ -523,7 +555,9 @@ atlas_session <- R6::R6Class("atlas_session",
               "blocked - this is enforced mechanically, do not retry. ",
               "Objects already in the session (atlas_models, ",
               "atlas_leaderboard) remain in place. Write your final report ",
-              "now from what you already know."))
+              "now from what you already know, and tell the user they can ",
+              "grant more budget with session$add_budget(steps = ...) if ",
+              "they want this work completed."))
           }
           private$steps <- private$steps + 1
           code <- trimws(code)

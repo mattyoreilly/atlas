@@ -216,6 +216,22 @@ test_that("max_steps is a mechanical stop, not a suggestion", {
   expect_no_match(new_session()$chat$get_system_prompt(), "Hard budget")
 })
 
+test_that("add_budget() unblocks an exhausted session", {
+  dir <- temp_dir()
+  s <- atlas_session$new(mtcars, "mpg", chat = real_chat(), dir = dir,
+                         max_steps = 1)
+  run_tool <- s$chat$get_tools()$run_r_code
+  run_tool("1 + 1")
+  blocked <- run_tool("2 + 2")
+  expect_match(blocked, "BUDGET EXHAUSTED")
+  expect_match(blocked, "add_budget")   # the agent relays the remedy
+
+  s$add_budget(steps = 2)
+  expect_match(run_tool("2 + 2"), "^\\[1\\] 4")
+  # the extension is persisted for resumes
+  expect_equal(readRDS(file.path(dir, "meta.rds"))$max_steps, 3)
+})
+
 test_that("max_runtime blocks execution after the deadline", {
   s <- new_session(max_runtime = 0.01)     # expires almost immediately
   Sys.sleep(0.05)

@@ -81,6 +81,16 @@ gone.
 Use them together: generous statistical rules so the agent explores, and a
 mechanical ceiling so "overnight" can't become "over the weekend".
 
+The budget binds the whole session, follow-up `$tell()` calls included - a
+finished run with nothing left in the tank will refuse further work. That
+is deliberate (a cap you can talk your way past is not a cap), and the
+remedy is explicit: grant more, then continue.
+
+```{r}
+res$session$add_budget(steps = 25)
+res$session$tell("remove the worst predictor and re-evaluate")
+```
+
 ## The live tally
 
 Every model and every tweak is scored the moment it is evaluated. The agent
