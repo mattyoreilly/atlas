@@ -1144,8 +1144,18 @@ atlas_run_segments <- function(code, env, max_rows = 30) {
   }
   handled <- tryCatch({
     for (expr in parse(text = code)) {
-      side <- utils::capture.output(res <- withVisible(eval(expr, env)))
+      # warnings must not abort the chunk (a glm separation warning used to
+      # kill everything after it, silently): collect them, keep going
+      warns <- character()
+      side <- utils::capture.output(
+        res <- withCallingHandlers(
+          withVisible(eval(expr, env)),
+          warning = function(w) {
+            warns <<- c(warns, paste("Warning:", conditionMessage(w)))
+            invokeRestart("muffleWarning")
+          }))
       add_text(side)
+      add_text(warns)
       if (res$visible) {
         tab <- as_table_df(res$value, max_rows)
         if (is.null(tab)) {
@@ -1158,8 +1168,7 @@ atlas_run_segments <- function(code, env, max_rows = 30) {
     }
     TRUE
   },
-  error = function(e) paste("Error:", conditionMessage(e)),
-  warning = function(w) paste("Warning:", conditionMessage(w)))
+  error = function(e) paste("Error:", conditionMessage(e)))
   if (!isTRUE(handled)) segs <- list(list(type = "text", lines = handled))
   coalesce_text(segs)
 }

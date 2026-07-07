@@ -15,6 +15,26 @@ test_that("errors and warnings come back as text, not conditions", {
   expect_match(run("warning('careful')", env), "^Warning: careful")
 })
 
+test_that("a warning does NOT abort the rest of the chunk", {
+  # regression: glm separation warnings used to kill the chunk mid-way,
+  # so assignments after the warning (atlas_models!) silently never ran
+  env <- new.env(parent = globalenv())
+  out <- run("x <- { warning('separation'); 41 }\ny <- x + 1\ny", env)
+  expect_match(out, "Warning: separation")
+  expect_match(out, "\\[1\\] 42")          # execution continued
+  expect_equal(env$y, 42)                  # and the assignments stuck
+
+  # multiple warnings all surface, in order, with output around them
+  out2 <- run("warning('one'); warning('two'); 'done'", env)
+  expect_match(out2, "Warning: one")
+  expect_match(out2, "Warning: two")
+  expect_match(out2, "done")
+
+  # errors still abort (that part was correct)
+  run("z <- 1; stop('dead'); z <- 99", env)
+  expect_equal(env$z, 1)
+})
+
 test_that("long output is truncated", {
   env <- new.env(parent = globalenv())
   out <- run("seq_len(1e5)", env)

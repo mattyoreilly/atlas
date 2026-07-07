@@ -1,5 +1,11 @@
 # atlas (development version)
 
+* Fixed: a warning inside an agent code chunk (e.g. `glm.fit: fitted
+  probabilities numerically 0 or 1 occurred`) aborted the rest of the
+  chunk, so later statements - including the `atlas_models` assignment -
+  silently never ran. Warnings are now collected into the output and
+  execution continues, matching console behaviour.
+
 * New `record_attempt` agent tool: atlas keeps a live, mechanical tally of
   every model/tweak the agent evaluates - printed as a one-line scoreboard,
   compared against the best so far with `stopping_tolerance`, answered with
