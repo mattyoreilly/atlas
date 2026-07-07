@@ -12,14 +12,14 @@ atlas_resume(dir, chat = NULL, ...)
 \item{chat}{Optionally a fresh ellmer chat object (must be tool-capable);
 defaults to \code{ellmer::chat_anthropic()}.}
 
-\item{...}{Passed on to the \link{AtlasSession} constructor, e.g. \code{on_ask} or
+\item{...}{Passed on to the \link{atlas_session} constructor, e.g. \code{on_ask} or
 \code{display} when resuming inside a front-end.}
 }
 \value{
-An \link{AtlasSession}.
+An \link{atlas_session}.
 }
 \description{
-Rebuilds an \link{AtlasSession} after a crash or R restart: reloads the data,
+Rebuilds an \link{atlas_session} after a crash or R restart: reloads the data,
 replays every recorded code chunk to reconstruct the working environment
 (models included), and restores the conversation so the agent remembers
 everything it did.

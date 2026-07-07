@@ -8,7 +8,7 @@ test_that("constraint() validates its inputs", {
 })
 
 test_that("normalize_constraints accepts strings, constraints, and mixes", {
-  n <- Atlas:::normalize_constraints
+  n <- atlas:::normalize_constraints
   expect_equal(n(NULL), list())
   one <- n("never use qsec")
   expect_named(one, "constraint_1")
@@ -50,14 +50,14 @@ test_that("con_monotone detects monotone and non-monotone response", {
 })
 
 test_that("verify_constraints reports per model, tolerates errors, keeps prompt-only rows", {
-  cons <- Atlas:::normalize_constraints(list(
+  cons <- atlas:::normalize_constraints(list(
     uses_wt = con_uses("wt"),
     boom = constraint("always fails loudly",
                       check = function(model, data) stop("kaput")),
     note = "prompt-only rule"
   ))
   models <- list(good = lm(mpg ~ wt, mtcars), bad = lm(mpg ~ hp, mtcars))
-  df <- Atlas:::verify_constraints(cons, models, mtcars)
+  df <- atlas:::verify_constraints(cons, models, mtcars)
 
   expect_equal(nrow(df), 5) # 2x2 checked + 1 prompt-only
   expect_true(df$passed[df$model == "good" & df$constraint == "uses_wt"])
@@ -65,12 +65,12 @@ test_that("verify_constraints reports per model, tolerates errors, keeps prompt-
   expect_match(df$detail[df$constraint == "boom"][1], "check errored: kaput")
   expect_true(is.na(df$passed[df$constraint == "note"]))
 
-  empty <- Atlas:::verify_constraints(list(), models, mtcars)
+  empty <- atlas:::verify_constraints(list(), models, mtcars)
   expect_equal(nrow(empty), 0)
 
   # checked constraints but no models yet: nothing to verify
-  no_models <- Atlas:::verify_constraints(
-    Atlas:::normalize_constraints(list(uses_wt = con_uses("wt"))), NULL, mtcars)
+  no_models <- atlas:::verify_constraints(
+    atlas:::normalize_constraints(list(uses_wt = con_uses("wt"))), NULL, mtcars)
   expect_equal(nrow(no_models), 0)
 })
 
@@ -103,7 +103,7 @@ test_that("excluded columns are removed before the agent sees the data", {
   dir <- temp_dir()
   leaky <- mtcars
   leaky$post_hoc <- leaky$mpg + 1
-  s <- AtlasSession$new(leaky, "mpg", exclude = c("post_hoc", "qsec"),
+  s <- atlas_session$new(leaky, "mpg", exclude = c("post_hoc", "qsec"),
                         chat = real_chat(), dir = dir)
 
   expect_false(any(c("post_hoc", "qsec") %in% names(s$env$data)))
@@ -111,12 +111,12 @@ test_that("excluded columns are removed before the agent sees the data", {
   expect_equal(readRDS(file.path(dir, "meta.rds"))$exclude,
                c("post_hoc", "qsec"))
 
-  prompt <- Atlas:::atlas_task_prompt(s$env$data,
+  prompt <- atlas:::atlas_task_prompt(s$env$data,
                                       readRDS(file.path(dir, "meta.rds")))
   expect_match(prompt, "excluded these columns")
   expect_match(prompt, "post_hoc, qsec")
 
-  expect_error(AtlasSession$new(mtcars, "mpg", exclude = "mpg",
+  expect_error(atlas_session$new(mtcars, "mpg", exclude = "mpg",
                                 chat = real_chat(), dir = temp_dir()),
                "outcome cannot be excluded")
 })
@@ -125,8 +125,8 @@ test_that("leakage flags reach the task prompt", {
   dir <- temp_dir()
   leaky <- mtcars
   leaky$mpg_copy <- leaky$mpg
-  s <- AtlasSession$new(leaky, "mpg", chat = real_chat(), dir = dir)
-  prompt <- Atlas:::atlas_task_prompt(s$env$data,
+  s <- atlas_session$new(leaky, "mpg", chat = real_chat(), dir = dir)
+  prompt <- atlas:::atlas_task_prompt(s$env$data,
                                       readRDS(file.path(dir, "meta.rds")))
   expect_match(prompt, "leakage screen")
   expect_match(prompt, "mpg_copy")
@@ -141,7 +141,7 @@ test_that("constraints_from_spec maps parsed specs to the right types", {
     direction = c(NA, "decreasing", NA, NA, NA, NA),
     description = paste("rule", 1:6)
   )
-  cons <- Atlas:::constraints_from_spec(spec, mtcars)
+  cons <- atlas:::constraints_from_spec(spec, mtcars)
 
   expect_true(is.function(cons$uses_wt$check))
   expect_true(is.function(cons$mono_hp$check))
@@ -156,18 +156,18 @@ test_that("constraints_from_spec maps parsed specs to the right types", {
   expect_match(cons$mono_hp$check(lm(mpg ~ I(-hp) + I(hp^2), mtcars), mtcars),
                "not monotonically")
 
-  expect_equal(Atlas:::constraints_from_spec(spec[0, ], mtcars), list())
+  expect_equal(atlas:::constraints_from_spec(spec[0, ], mtcars), list())
   expect_output(print(cons$uses_wt), "machine-checked")
   expect_output(print(cons$no_leak), "prompt-only")
 })
 
 test_that("session wires constraints into prompts, tools, and results", {
   dir <- temp_dir()
-  s <- AtlasSession$new(mtcars, "mpg", constraints = list(uses_wt = con_uses("wt")),
+  s <- atlas_session$new(mtcars, "mpg", constraints = list(uses_wt = con_uses("wt")),
                         chat = real_chat(), dir = dir)
 
   expect_match(s$chat$get_system_prompt(), "check_constraints")
-  expect_match(Atlas:::atlas_task_prompt(mtcars, readRDS(file.path(dir, "meta.rds"))),
+  expect_match(atlas:::atlas_task_prompt(mtcars, readRDS(file.path(dir, "meta.rds"))),
                "Hard constraints")
 
   s$env$atlas_models <- list(bad = lm(mpg ~ hp, mtcars))

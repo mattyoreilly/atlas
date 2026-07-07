@@ -1,4 +1,4 @@
-Package: Atlas
+Package: atlas
 Title: Automated Model Building with LLM Agents
 Version: 0.1.0
 Authors@R: person("Matt", "O'Reilly", email = "fermoymatt@gmail.com", role = c("aut", "cre"))

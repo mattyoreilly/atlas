@@ -1,4 +1,4 @@
 library(testthat)
-library(Atlas)
+library(atlas)
 
-test_check("Atlas")
+test_check("atlas")

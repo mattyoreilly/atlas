@@ -18,7 +18,7 @@ back to prompt-only enforcement).}
 }
 \value{
 A named list of \code{\link[=constraint]{constraint()}} objects, ready for the
-\code{constraints} argument of \code{\link[=atlas]{atlas()}} or \link{AtlasSession}.
+\code{constraints} argument of \code{\link[=atlas]{atlas()}} or \link{atlas_session}.
 }
 \description{
 Uses the LLM to parse free text into Atlas constraints, mapping to

@@ -33,7 +33,7 @@ Enforcement happens at three points:
 ## Three ways to write a constraint
 
 ```{r}
-library(Atlas)
+library(atlas)
 
 res <- atlas(mtcars, "mpg", n_models = 2, constraints = list(
   # 1. built-in helpers: machine-checked, model-agnostic

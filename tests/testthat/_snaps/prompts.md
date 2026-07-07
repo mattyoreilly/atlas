@@ -1,7 +1,7 @@
 # system prompt is stable
 
     Code
-      cat(Atlas:::atlas_system_prompt(3))
+      cat(atlas:::atlas_system_prompt(3))
     Output
       You are Atlas, an expert R statistician and ML engineer. You build models
       by writing R code and running it with the run_r_code tool. You can ask
@@ -72,7 +72,7 @@
 ---
 
     Code
-      cat(Atlas:::atlas_system_prompt(2, has_constraints = TRUE))
+      cat(atlas:::atlas_system_prompt(2, has_constraints = TRUE))
     Output
       You are Atlas, an expert R statistician and ML engineer. You build models
       by writing R code and running it with the run_r_code tool. You can ask
@@ -146,7 +146,7 @@
 # task prompt is stable
 
     Code
-      cat(Atlas:::atlas_task_prompt(mtcars, meta))
+      cat(atlas:::atlas_task_prompt(mtcars, meta))
     Output
       Build up to 2 models predicting `mpg` from the other columns.
       
@@ -174,7 +174,7 @@
 # refine prompt is stable
 
     Code
-      cat(Atlas:::atlas_refine_prompt(meta))
+      cat(atlas:::atlas_refine_prompt(meta))
     Output
       The candidates are built. Now refine the winner - the best model on `atlas_leaderboard` - to find the optimum version of it:
       1. Iterate on feature selection and feature engineering, ONE change per attempt: add or drop predictors, transformations, interactions, binning, encodings. Refit and evaluate every attempt with the same validation scheme and metric as before, and narrate one line per attempt: what changed, the metric, the best so far.
@@ -185,7 +185,7 @@
 # fix prompt is stable
 
     Code
-      cat(Atlas:::atlas_fix_prompt(fails))
+      cat(atlas:::atlas_fix_prompt(fails))
     Output
       Automated constraint verification found violations:
       - model 'm1', constraint 'uses_wt': predictions unchanged when `wt` is scrambled
@@ -246,7 +246,7 @@
 # md_table renders tidy markdown tables
 
     Code
-      cat(Atlas:::md_table(df))
+      cat(atlas:::md_table(df))
     Output
       | model | value | note |
       |---|---|---|

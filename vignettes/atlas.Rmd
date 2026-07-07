@@ -55,7 +55,7 @@ res <- atlas(mtcars, "mpg", chat = ellmer::chat_openai(model = "gpt-5"))
 ## One build, start to finish
 
 ```{r}
-library(Atlas)
+library(atlas)
 
 res <- atlas(mtcars, outcome = "mpg", n_models = 3,
              goal = "prioritise interpretability")

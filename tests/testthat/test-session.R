@@ -2,10 +2,10 @@
 # test-atlas.R; these use a real (never-called) ellmer chat.
 
 test_that("initialize validates inputs", {
-  expect_error(AtlasSession$new(mtcars, "not_a_col", chat = real_chat(),
+  expect_error(atlas_session$new(mtcars, "not_a_col", chat = real_chat(),
                                 dir = temp_dir()),
                "not a column")
-  expect_error(AtlasSession$new("not data", "mpg", chat = real_chat(),
+  expect_error(atlas_session$new("not data", "mpg", chat = real_chat(),
                                 dir = temp_dir()))
 })
 
@@ -47,7 +47,7 @@ test_that("stopping rules are validated, stored, and reach the system prompt", {
 
 test_that("test_prop holds out rows the agent never sees", {
   dir <- temp_dir()
-  s <- AtlasSession$new(mtcars, "mpg", test_prop = 0.25,
+  s <- atlas_session$new(mtcars, "mpg", test_prop = 0.25,
                         chat = real_chat(), dir = dir)
 
   expect_equal(nrow(s$test_data), 8)
@@ -58,10 +58,10 @@ test_that("test_prop holds out rows the agent never sees", {
                   rownames(mtcars))
   # persisted, deterministic, and mentioned in the brief
   expect_true(file.exists(file.path(dir, "test.rds")))
-  s2 <- AtlasSession$new(mtcars, "mpg", test_prop = 0.25,
+  s2 <- atlas_session$new(mtcars, "mpg", test_prop = 0.25,
                          chat = real_chat(), dir = temp_dir())
   expect_identical(s$env$data, s2$env$data)
-  prompt <- Atlas:::atlas_task_prompt(s$env$data,
+  prompt <- atlas:::atlas_task_prompt(s$env$data,
                                       readRDS(file.path(dir, "meta.rds")))
   expect_match(prompt, "NEVER see")
 
@@ -90,7 +90,7 @@ test_that("evaluate_on_test ranks models and tolerates broken ones", {
     weak = lm(mpg ~ 1, mtcars[11:32, ]),
     broken = structure(list(), class = "no_predict_method")
   )
-  lb <- Atlas:::evaluate_on_test(models, test, "mpg")
+  lb <- atlas:::evaluate_on_test(models, test, "mpg")
 
   expect_equal(lb$metric, rep("rmse", 3))
   expect_equal(lb$model[1], "good")           # best rmse first
@@ -98,7 +98,7 @@ test_that("evaluate_on_test ranks models and tolerates broken ones", {
   expect_true(is.na(lb$value[lb$model == "broken"]))
 
   # binary outcome: accuracy, with numeric predictions thresholded
-  cls <- Atlas:::evaluate_on_test(
+  cls <- atlas:::evaluate_on_test(
     list(m = glm(am ~ wt, mtcars, family = binomial)),
     mtcars, "am")
   expect_equal(cls$metric, "accuracy")
@@ -146,7 +146,7 @@ test_that("an exhausted budget skips refinement and validation", {
       reply = "built"
     )
   ))
-  s <- AtlasSession$new(mtcars, "mpg", chat = chat, dir = temp_dir(),
+  s <- atlas_session$new(mtcars, "mpg", chat = chat, dir = temp_dir(),
                         max_steps = 1)
   res <- s$build(verbose = FALSE)   # refine and validate both default TRUE
 
@@ -157,7 +157,7 @@ test_that("an exhausted budget skips refinement and validation", {
 test_that("the context is compacted once it exceeds the token budget", {
   dir <- temp_dir()
   chat <- FakeChat$new(list(list(reply = "ok"), list(reply = "still ok")))
-  s <- AtlasSession$new(mtcars, "mpg", chat = chat, dir = dir,
+  s <- atlas_session$new(mtcars, "mpg", chat = chat, dir = dir,
                         compact_at = 5000)
 
   chat$context_tokens <- 1000        # under budget: no compaction
@@ -167,7 +167,7 @@ test_that("the context is compacted once it exceeds the token budget", {
 
   # build the model in the agent's own env (as real runs do), so its formula
   # environment doesn't drag the test frame into the serialized artifacts
-  Atlas:::atlas_run_code(
+  atlas:::atlas_run_code(
     "atlas_models <- list(m1 = lm(mpg ~ wt, data))
      atlas_leaderboard <- data.frame(name = 'm1', metric = 'rmse', value = 3)",
     s$env)
@@ -190,7 +190,7 @@ test_that("the context is compacted once it exceeds the token budget", {
 
 test_that("manual compact() is a no-op on an empty conversation", {
   chat <- FakeChat$new()
-  s <- AtlasSession$new(mtcars, "mpg", chat = chat, dir = temp_dir())
+  s <- atlas_session$new(mtcars, "mpg", chat = chat, dir = temp_dir())
   s$compact()
   expect_equal(chat$turns_cleared, 0L)  # nothing to archive or clear
 })
@@ -199,12 +199,12 @@ test_that("the atlas.dir option controls where runs are saved", {
   base <- temp_dir()
   old <- options(atlas.dir = base)
   on.exit(options(old))
-  s <- AtlasSession$new(mtcars, "mpg", chat = real_chat())
+  s <- atlas_session$new(mtcars, "mpg", chat = real_chat())
   expect_true(startsWith(s$dir, base))
   expect_true(file.exists(file.path(s$dir, "data.rds")))
 
   # explicit dir still wins, and ~ is expanded
-  s2 <- AtlasSession$new(mtcars, "mpg", chat = real_chat(),
+  s2 <- atlas_session$new(mtcars, "mpg", chat = real_chat(),
                          dir = file.path(base, "explicit"))
   expect_equal(s2$dir, file.path(base, "explicit"))
 })
@@ -226,7 +226,7 @@ test_that("atlas_resume replays the code log and reconstructs the environment", 
               "atlas_models <- list(lm = m)",
               "atlas_leaderboard <- data.frame(name = 'lm', type = 'regression',
                  metric = 'rmse', value = 3, notes = 'baseline')")
-  for (chunk in s$code) Atlas:::atlas_run_code(chunk, s$env)
+  for (chunk in s$code) atlas:::atlas_run_code(chunk, s$env)
   s$checkpoint()
 
   r <- atlas_resume(dir, chat = real_chat())

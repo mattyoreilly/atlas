@@ -189,7 +189,7 @@ atlas_leakage_screen <- function(data, outcome, threshold = 0.95,
 #'   back to prompt-only enforcement).
 #' @param chat An ellmer chat object; defaults to `ellmer::chat_anthropic()`.
 #' @return A named list of [constraint()] objects, ready for the
-#'   `constraints` argument of [atlas()] or [AtlasSession].
+#'   `constraints` argument of [atlas()] or [atlas_session].
 #' @examples
 #' \dontrun{
 #' cons <- extract_constraints(

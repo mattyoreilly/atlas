@@ -22,14 +22,14 @@ the conversation.
 
 ## The session object
 
-`atlas()` is a one-call wrapper around an `AtlasSession` (R6), which holds
+`atlas()` is a one-call wrapper around an `atlas_session` (R6), which holds
 the ellmer conversation, the R environment the agent works in, and the run
 directory:
 
 ```{r}
-library(Atlas)
+library(atlas)
 
-s <- AtlasSession$new(mtcars, outcome = "mpg", n_models = 3,
+s <- atlas_session$new(mtcars, outcome = "mpg", n_models = 3,
                       goal = "prioritise interpretability")
 res <- s$build()                 # the full lifecycle, approval included
 s$tell("swap model 2 for a GAM") # follow-up, same context

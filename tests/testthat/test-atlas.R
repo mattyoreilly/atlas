@@ -25,7 +25,7 @@ test_that("build() runs the loop, verifies constraints, and repairs violations",
     )
   ))
 
-  s <- AtlasSession$new(mtcars, "mpg", n_models = 1,
+  s <- atlas_session$new(mtcars, "mpg", n_models = 1,
                         constraints = list(uses_wt = con_uses("wt")),
                         chat = chat, dir = dir)
   res <- s$build(verbose = FALSE, refine = FALSE, validate = FALSE)
@@ -63,7 +63,7 @@ test_that("build() gives up after max_fix_rounds and reports what's unmet", {
     list(reply = "cannot fix it"),
     list(reply = "still cannot fix it")
   ))
-  s <- AtlasSession$new(mtcars, "mpg",
+  s <- atlas_session$new(mtcars, "mpg",
                         constraints = list(uses_wt = con_uses("wt")),
                         chat = chat, dir = temp_dir())
   res <- s$build(verbose = FALSE, max_fix_rounds = 2, refine = FALSE,
@@ -93,7 +93,7 @@ test_that("atlas() wrapper returns a complete results object", {
   expect_s3_class(res$models$m, "lm")
   expect_equal(res$report, "report text")
   expect_equal(res$leaderboard$value, 2.9)
-  expect_s3_class(res$session, "AtlasSession")
+  expect_s3_class(res$session, "atlas_session")
   expect_match(res$code[1], "atlas_models")
 })
 
@@ -109,7 +109,7 @@ test_that("build() requests modelblueprint validation for the winner", {
     ),
     list(reply = "validation files written")
   ))
-  s <- AtlasSession$new(mtcars, "mpg", chat = chat, dir = dir)
+  s <- atlas_session$new(mtcars, "mpg", chat = chat, dir = dir)
   s$build(verbose = FALSE, refine = FALSE)
 
   expect_length(chat$log, 2)
@@ -163,7 +163,7 @@ test_that("without modelblueprint, validation is skipped cleanly", {
       reply = "built"
     )
   ))
-  s <- AtlasSession$new(mtcars, "mpg", chat = chat, dir = temp_dir())
+  s <- atlas_session$new(mtcars, "mpg", chat = chat, dir = temp_dir())
 
   # the agent is never told about modelblueprint or its file-write exception
   expect_no_match(s$chat$get_system_prompt(), "modelblueprint")
@@ -190,7 +190,7 @@ test_that("build() refines the winner under the stopping rules", {
       reply = "refined: added wt^2 and hp, stopped after 3 flat attempts"
     )
   ))
-  s <- AtlasSession$new(mtcars, "mpg", chat = chat, dir = dir,
+  s <- atlas_session$new(mtcars, "mpg", chat = chat, dir = dir,
                         stopping_rounds = 4, stopping_tolerance = 0.02)
   res <- s$build(verbose = FALSE, validate = FALSE)
 
@@ -225,7 +225,7 @@ test_that("constraints are re-verified after refinement", {
       reply = "fixed"
     )
   ))
-  s <- AtlasSession$new(mtcars, "mpg",
+  s <- atlas_session$new(mtcars, "mpg",
                         constraints = list(uses_wt = con_uses("wt")),
                         chat = chat, dir = temp_dir())
   res <- s$build(verbose = FALSE, validate = FALSE)

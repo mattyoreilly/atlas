@@ -14,7 +14,7 @@ test_that("on_ask handler overrides the console for agent questions", {
 test_that("app UI builds and has the key inputs", {
   skip_if_not_installed("shiny")
   skip_if_not_installed("bslib")
-  ui <- Atlas:::atlas_app_ui()
+  ui <- atlas:::atlas_app_ui()
   html <- as.character(ui)
   for (id in c("file", "outcome", "n_models", "goal", "rules", "build",
                "stopping_rounds", "stopping_tolerance", "tabs", "outdir",
@@ -25,13 +25,13 @@ test_that("app UI builds and has the key inputs", {
 
 test_that("atlas_load_results re-verifies constraints from a run directory", {
   dir <- temp_dir()
-  s <- AtlasSession$new(mtcars, "mpg",
+  s <- atlas_session$new(mtcars, "mpg",
                         constraints = list(uses_wt = con_uses("wt")),
                         chat = real_chat(), dir = dir)
-  expect_null(Atlas:::atlas_load_results(dir))  # no models saved yet
+  expect_null(atlas:::atlas_load_results(dir))  # no models saved yet
 
   saveRDS(list(m = lm(mpg ~ wt, mtcars)), file.path(dir, "models.rds"))
-  df <- Atlas:::atlas_load_results(dir)
+  df <- atlas:::atlas_load_results(dir)
   expect_true(df$passed)
   expect_equal(df$constraint, "uses_wt")
 })
@@ -49,8 +49,8 @@ test_that("markdown display mode emits fenced blocks for the app log", {
 test_that("app worker calls Atlas functions only via ::", {
   # callr transports the worker without its namespace, so unqualified Atlas
   # calls fail at runtime in the background process
-  body_txt <- paste(deparse(body(Atlas:::atlas_app_worker)), collapse = "\n")
-  for (fn in c("extract_constraints\\(", "AtlasSession\\$", "atlas_run_code\\(",
+  body_txt <- paste(deparse(body(atlas:::atlas_app_worker)), collapse = "\n")
+  for (fn in c("extract_constraints\\(", "atlas_session\\$", "atlas_run_code\\(",
                "constraint\\(", "atlas\\(", "atlas_resume\\(")) {
     expect_false(grepl(paste0("(?<!:)\\b", fn), body_txt, perl = TRUE),
                  label = paste("unqualified call to", fn))
@@ -59,7 +59,7 @@ test_that("app worker calls Atlas functions only via ::", {
 
 test_that("markdown tables actually render to HTML tables", {
   skip_if_not_installed("commonmark")
-  md <- Atlas:::md_table(data.frame(name = "mpg", value = 0))
+  md <- atlas:::md_table(data.frame(name = "mpg", value = 0))
   # regression: without extensions = TRUE, pipe tables render as plain text
   expect_match(commonmark::markdown_html(md, extensions = TRUE), "<table>")
 })

@@ -1,6 +1,6 @@
 #' A persistent, resumable model-building session
 #'
-#' An `AtlasSession` wraps an LLM agent, an R working environment holding your
+#' An `atlas_session` wraps an LLM agent, an R working environment holding your
 #' data, and a run directory on disk. The agent builds models by executing R
 #' code; every code chunk and conversation turn is checkpointed to the run
 #' directory, so a session survives crashes and R restarts (see
@@ -15,7 +15,7 @@
 #'
 #' @examples
 #' \dontrun{
-#' s <- AtlasSession$new(mtcars, outcome = "mpg", n_models = 3)
+#' s <- atlas_session$new(mtcars, outcome = "mpg", n_models = 3)
 #' res <- s$build()          # agent works, asking for approval as needed
 #' res                       # leaderboard + per-model report
 #' s$tell("try a model with only 3 predictors as a 4th candidate")
@@ -28,7 +28,7 @@
 #' @importFrom cli cli_rule
 #' @importFrom coro is_exhausted
 #' @export
-AtlasSession <- R6::R6Class("AtlasSession",
+atlas_session <- R6::R6Class("atlas_session",
   public = list(
     #' @field chat The underlying ellmer chat object.
     chat = NULL,
@@ -337,7 +337,7 @@ AtlasSession <- R6::R6Class("AtlasSession",
     #' @description Print a short status line.
     #' @param ... Ignored.
     print = function(...) {
-      cat("<AtlasSession>", self$dir, "-",
+      cat("<atlas_session>", self$dir, "-",
           length(self$code), "code chunks run,",
           if (is.null(self$env$atlas_models)) "no models yet"
           else paste(length(self$env$atlas_models), "models built"), "\n")
@@ -590,7 +590,7 @@ AtlasSession <- R6::R6Class("AtlasSession",
 
 #' Resume a session from its run directory
 #'
-#' Rebuilds an [AtlasSession] after a crash or R restart: reloads the data,
+#' Rebuilds an [atlas_session] after a crash or R restart: reloads the data,
 #' replays every recorded code chunk to reconstruct the working environment
 #' (models included), and restores the conversation so the agent remembers
 #' everything it did.
@@ -598,9 +598,9 @@ AtlasSession <- R6::R6Class("AtlasSession",
 #' @param dir A run directory created by a previous session.
 #' @param chat Optionally a fresh ellmer chat object (must be tool-capable);
 #'   defaults to `ellmer::chat_anthropic()`.
-#' @param ... Passed on to the [AtlasSession] constructor, e.g. `on_ask` or
+#' @param ... Passed on to the [atlas_session] constructor, e.g. `on_ask` or
 #'   `display` when resuming inside a front-end.
-#' @return An [AtlasSession].
+#' @return An [atlas_session].
 #' @examples
 #' \dontrun{
 #' s <- atlas_resume(".atlas/20260703-141500")
@@ -610,7 +610,7 @@ AtlasSession <- R6::R6Class("AtlasSession",
 atlas_resume <- function(dir, chat = NULL, ...) {
   meta <- readRDS(file.path(dir, "meta.rds"))
   data <- readRDS(file.path(dir, "data.rds"))
-  s <- AtlasSession$new(data, meta$outcome, n_models = meta$n_models,
+  s <- atlas_session$new(data, meta$outcome, n_models = meta$n_models,
                         goal = meta$goal, constraints = meta$constraints,
                         chat = chat, dir = dir,
                         stopping_rounds = meta$stopping_rounds %||%

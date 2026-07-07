@@ -65,6 +65,6 @@ temp_dir <- function() {
 }
 
 new_session <- function(dir = temp_dir(), chat = real_chat(), ...) {
-  AtlasSession$new(mtcars, "mpg", n_models = 2, goal = "keep it simple",
+  atlas_session$new(mtcars, "mpg", n_models = 2, goal = "keep it simple",
                    chat = chat, dir = dir, ...)
 }

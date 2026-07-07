@@ -516,7 +516,7 @@ atlas_app_worker <- function(dir, outcome = NULL, n_models = 3, goal = NULL,
 
   if (!is.null(instruction)) {
     cat("Restoring your session (re-running the recorded code)...\n\n")
-    s <- Atlas::atlas_resume(dir, on_ask = ask_via_files,
+    s <- atlas::atlas_resume(dir, on_ask = ask_via_files,
                              display = "markdown",
                              interject = interject_via_files)
     s$tell(instruction, verbose = TRUE)
@@ -528,7 +528,7 @@ atlas_app_worker <- function(dir, outcome = NULL, n_models = 3, goal = NULL,
   cons <- NULL
   if (nzchar(trimws(rules %||% ""))) {
     cat("Turning your rules into constraints...\n\n")
-    cons <- Atlas::extract_constraints(rules, data[setdiff(names(data), exclude)])
+    cons <- atlas::extract_constraints(rules, data[setdiff(names(data), exclude)])
     for (nm in names(cons)) {
       cat("* `", format(cons[[nm]]), "`\n", sep = "")
     }
@@ -538,7 +538,7 @@ atlas_app_worker <- function(dir, outcome = NULL, n_models = 3, goal = NULL,
     cat("Excluded from modelling (your choice): ",
         paste0("`", exclude, "`", collapse = ", "), "\n\n", sep = "")
   }
-  s <- Atlas::AtlasSession$new(data, outcome, n_models = n_models, goal = goal,
+  s <- atlas::atlas_session$new(data, outcome, n_models = n_models, goal = goal,
                                constraints = cons, dir = dir,
                                on_ask = ask_via_files, display = "markdown",
                                stopping_rounds = stopping_rounds, stopping_tolerance = stopping_tolerance,

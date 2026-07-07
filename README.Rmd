@@ -52,7 +52,7 @@ argument.
 ## Usage
 
 ```{r}
-library(Atlas)
+library(atlas)
 
 res <- atlas(mtcars, outcome = "mpg", goal = "prioritise interpretability")
 ```
@@ -122,7 +122,7 @@ res$test_leaderboard   # held-out performance, best first
 
 ## Sessions
 
-`atlas()` is a one-call wrapper around an `AtlasSession`, which lives in the
+`atlas()` is a one-call wrapper around an `atlas_session`, which lives in the
 run directory as much as in memory: data, code log, conversation, and
 artifacts (report, leaderboard, models, validation plots) are all on disk,
 so sessions survive anything:

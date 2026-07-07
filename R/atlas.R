@@ -1,6 +1,6 @@
 #' Build models automatically with an LLM agent
 #'
-#' One-call convenience wrapper around [AtlasSession]: hands your data to an
+#' One-call convenience wrapper around [atlas_session]: hands your data to an
 #' agentic LLM that explores it, proposes a plan for your approval, fits and
 #' evaluates `n_models` candidate models, and returns the fitted models with a
 #' leaderboard and a report of how each was built. Progress streams to the
@@ -83,7 +83,7 @@
 #'   fitted models), `leaderboard` (data.frame of validation metrics),
 #'   `test_leaderboard` (held-out test metrics, when `test_prop > 0`),
 #'   `report` (markdown, how each model was built), `code` (every code chunk
-#'   the agent ran), `dir`, and `session` (the live [AtlasSession], for
+#'   the agent ran), `dir`, and `session` (the live [atlas_session], for
 #'   follow-ups via `$tell()`).
 #' @examples
 #' \dontrun{
@@ -108,7 +108,7 @@ atlas <- function(data, outcome, n_models = 3, goal = NULL,
                   validate = TRUE, exclude = NULL,
                   autonomous = FALSE, test_prop = 0, compact_at = 1e5,
                   max_steps = Inf, max_runtime = Inf) {
-  session <- AtlasSession$new(data, outcome, n_models = n_models, goal = goal,
+  session <- atlas_session$new(data, outcome, n_models = n_models, goal = goal,
                               constraints = constraints, chat = chat, dir = dir,
                               stopping_rounds = stopping_rounds, stopping_tolerance = stopping_tolerance,
                               exclude = exclude, autonomous = autonomous,

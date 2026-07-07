@@ -1,5 +1,5 @@
 # The code-execution core: what the agent's hands actually do.
-run <- Atlas:::atlas_run_code
+run <- atlas:::atlas_run_code
 
 test_that("state persists between calls and data is reachable", {
   env <- new.env(parent = globalenv())
@@ -68,13 +68,13 @@ test_that("tabular results render as markdown tables", {
 test_that("consecutive text output coalesces into one segment", {
   env <- new.env(parent = globalenv())
   env$data <- mtcars
-  segs <- Atlas:::atlas_run_segments(
+  segs <- atlas:::atlas_run_segments(
     "cat('one\\n')\ncat('two\\n')\n1 + 1\ncat('three\\n')", env)
   expect_length(segs, 1)  # all plain text: one block, not four
   expect_equal(segs[[1]]$lines, c("one", "two", "[1] 2", "three"))
 
   # tables still split the text around them
-  segs2 <- Atlas:::atlas_run_segments("cat('before\\n')\ntable(data$vs)", env)
+  segs2 <- atlas:::atlas_run_segments("cat('before\\n')\ntable(data$vs)", env)
   expect_length(segs2, 2)
   expect_equal(segs2[[1]]$type, "text")
   expect_equal(segs2[[2]]$type, "table")

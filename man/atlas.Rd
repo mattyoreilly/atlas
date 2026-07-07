@@ -120,11 +120,11 @@ An object of class \code{atlas}: list with \code{models} (named list of
 fitted models), \code{leaderboard} (data.frame of validation metrics),
 \code{test_leaderboard} (held-out test metrics, when \code{test_prop > 0}),
 \code{report} (markdown, how each model was built), \code{code} (every code chunk
-the agent ran), \code{dir}, and \code{session} (the live \link{AtlasSession}, for
+the agent ran), \code{dir}, and \code{session} (the live \link{atlas_session}, for
 follow-ups via \verb{$tell()}).
 }
 \description{
-One-call convenience wrapper around \link{AtlasSession}: hands your data to an
+One-call convenience wrapper around \link{atlas_session}: hands your data to an
 agentic LLM that explores it, proposes a plan for your approval, fits and
 evaluates \code{n_models} candidate models, and returns the fitted models with a
 leaderboard and a report of how each was built. Progress streams to the
