@@ -14,7 +14,7 @@ test_that("task prompt is stable", {
 })
 
 test_that("refine prompt is stable", {
-  meta <- list(patience = 3, min_improve = 0.05,
+  meta <- list(stopping_rounds = 3, stopping_tolerance = 0.05,
                constraints = Atlas:::normalize_constraints("no leakage"))
   expect_snapshot(cat(Atlas:::atlas_refine_prompt(meta)))
 })

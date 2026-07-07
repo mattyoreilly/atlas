@@ -11,12 +11,12 @@
 #' @param data A data.frame.
 #' @param outcome Name of the outcome column (string).
 #' @param n_models Maximum number of candidate models to build; the agent
-#'   stops earlier when the stopping rules trigger (see `patience` and
-#'   `min_improve`).
-#' @param patience Stopping rule: give up on an iteration (adding candidate
+#'   stops earlier when the stopping rules trigger (see `stopping_rounds` and
+#'   `stopping_tolerance`).
+#' @param stopping_rounds Stopping rule: give up on an iteration (adding candidate
 #'   models, or a refinement loop like "keep improving the features") after
 #'   this many consecutive attempts without improvement.
-#' @param min_improve Stopping rule: an attempt only counts as an improvement
+#' @param stopping_tolerance Stopping rule: an attempt only counts as an improvement
 #'   if it beats the best validation metric so far by at least this relative
 #'   fraction, between 0 and 1 — e.g. `0.05` for 5%.
 #' @param exclude Columns the models must not use — because they won't be
@@ -38,8 +38,8 @@
 #' @param refine After the winning algorithm is found (and constraints pass),
 #'   keep iterating on its feature selection and engineering — one change per
 #'   attempt, same validation scheme — until the stopping rules trigger
-#'   (`patience` consecutive attempts without a relative gain of at least
-#'   `min_improve`). The refined model lands in the results as
+#'   (`stopping_rounds` consecutive attempts without a relative gain of at least
+#'   `stopping_tolerance`). The refined model lands in the results as
 #'   `<winner>_refined`, alongside the original.
 #' @param validate Produce reviewable validation output for the winning model
 #'   (gain, calibration, grouped residuals, one-ways, PDPs) as interactive
@@ -55,9 +55,9 @@
 #' @param verbose Stream the agent's narration to the console.
 #' @param autonomous Run with no human in the loop: the agent states its plan
 #'   and proceeds instead of waiting for approval, and never asks questions.
-#'   Combine with a generous `n_models`/`patience` and `test_prop` for
+#'   Combine with a generous `n_models`/`stopping_rounds` and `test_prop` for
 #'   unattended experimentation runs — e.g.
-#'   `atlas(d, "y", autonomous = TRUE, n_models = 10, patience = 8,
+#'   `atlas(d, "y", autonomous = TRUE, n_models = 10, stopping_rounds = 8,
 #'   test_prop = 0.2)` — where the agent iterates keep/discard experiments
 #'   and the survivors are judged on the held-out test set at the end.
 #' @param test_prop Proportion of rows (0 to <1) to hold out as a final test
@@ -73,6 +73,12 @@
 #'   Keeps long runs inside the context window and stops them paying to
 #'   re-read their own history. `Inf` disables. The total cost of a session
 #'   is reported as `cost` in the results and by `print()`.
+#' @param max_steps,max_runtime Hard budgets, mechanically enforced (unlike
+#'   the stopping rules, which the agent applies itself): the maximum number
+#'   of code executions and wall-clock seconds for the session. The agent is
+#'   warned in tool results as a budget nears exhaustion; past the limit,
+#'   code execution is refused and it must finalise from what it has. `Inf`
+#'   (default) disables. Recommended for `autonomous` runs.
 #' @return An object of class `atlas`: list with `models` (named list of
 #'   fitted models), `leaderboard` (data.frame of validation metrics),
 #'   `test_leaderboard` (held-out test metrics, when `test_prop > 0`),
@@ -98,14 +104,16 @@
 atlas <- function(data, outcome, n_models = 3, goal = NULL,
                   constraints = NULL, chat = NULL, dir = NULL,
                   verbose = TRUE, max_fix_rounds = 2,
-                  patience = 3, min_improve = 0.05, refine = TRUE,
+                  stopping_rounds = 3, stopping_tolerance = 0.05, refine = TRUE,
                   validate = TRUE, exclude = NULL,
-                  autonomous = FALSE, test_prop = 0, compact_at = 1e5) {
+                  autonomous = FALSE, test_prop = 0, compact_at = 1e5,
+                  max_steps = Inf, max_runtime = Inf) {
   session <- AtlasSession$new(data, outcome, n_models = n_models, goal = goal,
                               constraints = constraints, chat = chat, dir = dir,
-                              patience = patience, min_improve = min_improve,
+                              stopping_rounds = stopping_rounds, stopping_tolerance = stopping_tolerance,
                               exclude = exclude, autonomous = autonomous,
-                              test_prop = test_prop, compact_at = compact_at)
+                              test_prop = test_prop, compact_at = compact_at,
+                              max_steps = max_steps, max_runtime = max_runtime)
   session$build(verbose = verbose, max_fix_rounds = max_fix_rounds,
                 refine = refine, validate = validate)
   session$results()

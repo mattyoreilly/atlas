@@ -79,13 +79,15 @@ placed in the agent's environment.}
   dir = NULL,
   on_ask = NULL,
   display = c("console", "markdown"),
-  patience = 3,
-  min_improve = 0.05,
+  stopping_rounds = 3,
+  stopping_tolerance = 0.05,
   exclude = NULL,
   interject = NULL,
   autonomous = FALSE,
   test_prop = 0,
-  compact_at = 1e+05
+  compact_at = 1e+05,
+  max_steps = Inf,
+  max_runtime = Inf
 )}
     \if{html}{\out{</div>}}
   }
@@ -116,10 +118,10 @@ by \code{\link[=atlas_app]{atlas_app()}} to route questions to the browser.}
       \item{\code{display}}{How verbose progress is formatted: \code{"console"} (cli
 rules and colours) or \code{"markdown"} (fenced code blocks, for
 front-ends that render the stream as markdown, like \code{\link[=atlas_app]{atlas_app()}}).}
-      \item{\code{patience}}{Stopping rule: give up on an iteration (adding
+      \item{\code{stopping_rounds}}{Stopping rule: give up on an iteration (adding
 candidates, or a refinement loop) after this many consecutive
 attempts without improvement.}
-      \item{\code{min_improve}}{Stopping rule: an attempt only counts as an
+      \item{\code{stopping_tolerance}}{Stopping rule: an attempt only counts as an
 improvement if it beats the best validation metric so far by at
 least this relative fraction, between 0 and 1 (e.g. \code{0.05} for 5\%).}
       \item{\code{exclude}}{Columns the models must not use (not available at
@@ -145,6 +147,14 @@ window is cleared, and the agent is re-oriented with a briefing
 built from the session state (no extra LLM call). Long runs stay
 inside the model's context window and stop paying to re-read their
 own history. Set to \code{Inf} to disable.}
+      \item{\code{max_steps}}{Hard budget: the maximum number of code executions
+the agent gets in this session. Unlike the stopping rules (which the
+agent applies itself), this is mechanically enforced — past the
+limit the \code{run_r_code} tool refuses to execute and instructs the
+agent to finalise from what it has. \code{Inf} (default) disables.}
+      \item{\code{max_runtime}}{Hard budget: wall-clock seconds for this session
+process, enforced the same way as \code{max_steps}. Timing restarts on
+\code{\link[=atlas_resume]{atlas_resume()}}. \code{Inf} (default) disables.}
     }
     \if{html}{\out{</div>}}
   }
@@ -177,7 +187,7 @@ to \code{max_fix_rounds} times.
       \item{\code{refine}}{After the winning algorithm is found (and constraints
 pass), iterate on its feature selection and engineering — one change
 per attempt, same validation scheme — until the session's stopping
-rules trigger (\code{patience} attempts without a \code{min_improve} gain).
+rules trigger (\code{stopping_rounds} attempts without a \code{stopping_tolerance} gain).
 The refined model is added to the results alongside the original.}
       \item{\code{validate}}{Produce reviewable validation output (gain,
 calibration, grouped residuals, one-ways, PDPs) for the winning

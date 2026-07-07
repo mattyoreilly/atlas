@@ -67,10 +67,10 @@ AtlasSession <- R6::R6Class("AtlasSession",
     #' @param display How verbose progress is formatted: `"console"` (cli
     #'   rules and colours) or `"markdown"` (fenced code blocks, for
     #'   front-ends that render the stream as markdown, like [atlas_app()]).
-    #' @param patience Stopping rule: give up on an iteration (adding
+    #' @param stopping_rounds Stopping rule: give up on an iteration (adding
     #'   candidates, or a refinement loop) after this many consecutive
     #'   attempts without improvement.
-    #' @param min_improve Stopping rule: an attempt only counts as an
+    #' @param stopping_tolerance Stopping rule: an attempt only counts as an
     #'   improvement if it beats the best validation metric so far by at
     #'   least this relative fraction, between 0 and 1 (e.g. `0.05` for 5%).
     #' @param exclude Columns the models must not use (not available at
@@ -96,20 +96,36 @@ AtlasSession <- R6::R6Class("AtlasSession",
     #'   built from the session state (no extra LLM call). Long runs stay
     #'   inside the model's context window and stop paying to re-read their
     #'   own history. Set to `Inf` to disable.
+    #' @param max_steps Hard budget: the maximum number of code executions
+    #'   the agent gets in this session. Unlike the stopping rules (which the
+    #'   agent applies itself), this is mechanically enforced — past the
+    #'   limit the `run_r_code` tool refuses to execute and instructs the
+    #'   agent to finalise from what it has. `Inf` (default) disables.
+    #' @param max_runtime Hard budget: wall-clock seconds for this session
+    #'   process, enforced the same way as `max_steps`. Timing restarts on
+    #'   [atlas_resume()]. `Inf` (default) disables.
     initialize = function(data, outcome, n_models = 3, goal = NULL,
                           constraints = NULL, chat = NULL, dir = NULL,
                           on_ask = NULL, display = c("console", "markdown"),
-                          patience = 3, min_improve = 0.05, exclude = NULL,
+                          stopping_rounds = 3, stopping_tolerance = 0.05, exclude = NULL,
                           interject = NULL, autonomous = FALSE,
-                          test_prop = 0, compact_at = 1e5) {
+                          test_prop = 0, compact_at = 1e5,
+                          max_steps = Inf, max_runtime = Inf) {
+      stopifnot(is.numeric(max_steps), max_steps >= 1,
+                is.numeric(max_runtime), max_runtime > 0)
       private$compact_at <- compact_at
+      private$max_steps <- max_steps
+      private$max_runtime <- max_runtime
+      private$deadline <- if (is.finite(max_runtime)) {
+        Sys.time() + max_runtime
+      }
       private$on_ask <- on_ask
       private$interject <- interject
       private$display <- match.arg(display)
       stopifnot(is.data.frame(data), is.character(outcome), length(outcome) == 1,
                 is.numeric(n_models), length(n_models) == 1, n_models >= 1,
-                is.numeric(patience), patience >= 1,
-                is.numeric(min_improve), min_improve >= 0, min_improve <= 1,
+                is.numeric(stopping_rounds), stopping_rounds >= 1,
+                is.numeric(stopping_tolerance), stopping_tolerance >= 0, stopping_tolerance <= 1,
                 is.numeric(test_prop), test_prop >= 0, test_prop < 1)
       if (!outcome %in% names(data)) {
         stop("outcome '", outcome, "' is not a column of `data`", call. = FALSE)
@@ -127,10 +143,11 @@ AtlasSession <- R6::R6Class("AtlasSession",
                           error = function(e) NULL)
       private$meta <- list(outcome = outcome, n_models = n_models, goal = goal,
                            constraints = normalize_constraints(constraints),
-                           patience = patience, min_improve = min_improve,
+                           stopping_rounds = stopping_rounds, stopping_tolerance = stopping_tolerance,
                            exclude = exclude, leakage = leakage,
                            autonomous = autonomous, test_prop = test_prop,
-                           compact_at = compact_at)
+                           compact_at = compact_at,
+                           max_steps = max_steps, max_runtime = max_runtime)
       self$dir <- path.expand(
         dir %||% file.path(getOption("atlas.dir", ".atlas"),
                            format(Sys.time(), "%Y%m%d-%H%M%S")))
@@ -146,8 +163,9 @@ AtlasSession <- R6::R6Class("AtlasSession",
       self$chat <- chat %||% ellmer::chat_anthropic()
       sys_prompt <- atlas_system_prompt(
         n_models, length(private$meta$constraints) > 0,
-        patience = patience, min_improve = min_improve,
-        has_modelblueprint = mb_available(), autonomous = autonomous)
+        stopping_rounds = stopping_rounds, stopping_tolerance = stopping_tolerance,
+        has_modelblueprint = mb_available(), autonomous = autonomous,
+        max_steps = max_steps, max_runtime = max_runtime)
       if (identical(private$display, "markdown")) {
         sys_prompt <- paste0(
           sys_prompt, "\n\nYour narration and code output are rendered as",
@@ -176,7 +194,7 @@ AtlasSession <- R6::R6Class("AtlasSession",
     #' @param refine After the winning algorithm is found (and constraints
     #'   pass), iterate on its feature selection and engineering — one change
     #'   per attempt, same validation scheme — until the session's stopping
-    #'   rules trigger (`patience` attempts without a `min_improve` gain).
+    #'   rules trigger (`stopping_rounds` attempts without a `stopping_tolerance` gain).
     #'   The refined model is added to the results alongside the original.
     #' @param validate Produce reviewable validation output (gain,
     #'   calibration, grouped residuals, one-ways, PDPs) for the winning
@@ -188,11 +206,13 @@ AtlasSession <- R6::R6Class("AtlasSession",
       self$tell(atlas_task_prompt(self$env$data, private$meta),
                 verbose = verbose)
       private$fix_constraints(max_fix_rounds, verbose)
-      if (refine && !is.null(self$env$atlas_models)) {
+      if (refine && !is.null(self$env$atlas_models) &&
+          !private$budget_exhausted()) {
         self$tell(atlas_refine_prompt(private$meta), verbose = verbose)
         private$fix_constraints(max_fix_rounds, verbose)
       }
-      if (validate && !is.null(self$env$atlas_models)) {
+      if (validate && !is.null(self$env$atlas_models) &&
+          !private$budget_exhausted()) {
         if (mb_available()) {
           self$tell(atlas_validation_prompt(self$dir), verbose = verbose)
         } else if (verbose) {
@@ -330,6 +350,42 @@ AtlasSession <- R6::R6Class("AtlasSession",
     last_report = NULL,
     compact_at = 1e5,
     compacted = FALSE,
+    max_steps = Inf,
+    max_runtime = Inf,
+    deadline = NULL,
+    steps = 0,
+
+    budget_reason = function() {
+      if (private$steps >= private$max_steps) {
+        sprintf("the %d-step limit is used up", as.integer(private$max_steps))
+      } else if (!is.null(private$deadline) && Sys.time() >= private$deadline) {
+        "the wall-clock time limit has passed"
+      }
+    },
+
+    budget_exhausted = function() !is.null(private$budget_reason()),
+
+    # warning banner appended to tool results once 80% of a budget is spent
+    budget_note = function() {
+      parts <- c(
+        if (is.finite(private$max_steps) &&
+            private$steps >= 0.8 * private$max_steps) {
+          sprintf("%d of %d code executions used", private$steps,
+                  as.integer(private$max_steps))
+        },
+        if (!is.null(private$deadline)) {
+          left <- as.numeric(difftime(private$deadline, Sys.time(),
+                                      units = "secs"))
+          if (left <= 0.2 * private$max_runtime) {
+            sprintf("%.0f minutes of runtime left", max(0, left) / 60)
+          }
+        }
+      )
+      if (length(parts) == 0) return(NULL)
+      paste0("[BUDGET WARNING: ", paste(parts, collapse = "; "),
+             ". Prioritise finalising `atlas_models`, `atlas_leaderboard`, ",
+             "and your report before execution is blocked.]")
+    },
 
     # tokens of the most recent request = current context size; cached
     # input still occupies the window, so count it too
@@ -343,6 +399,7 @@ AtlasSession <- R6::R6Class("AtlasSession",
 
     fix_constraints = function(max_fix_rounds, verbose) {
       for (round in seq_len(max_fix_rounds)) {
+        if (private$budget_exhausted()) break
         fails <- self$check()
         fails <- fails[!is.na(fails$passed) & !fails$passed, , drop = FALSE]
         if (nrow(fails) == 0) break
@@ -357,6 +414,16 @@ AtlasSession <- R6::R6Class("AtlasSession",
     register_tools = function() {
       self$chat$register_tool(ellmer::tool(
         function(code) {
+          reason <- private$budget_reason()
+          if (!is.null(reason)) {
+            return(paste0(
+              "BUDGET EXHAUSTED (", reason, "): code execution is now ",
+              "blocked - this is enforced mechanically, do not retry. ",
+              "Objects already in the session (atlas_models, ",
+              "atlas_leaderboard) remain in place. Write your final report ",
+              "now from what you already know."))
+          }
+          private$steps <- private$steps + 1
           code <- trimws(code)
           self$code[[length(self$code) + 1]] <- code
           md <- identical(private$display, "markdown")
@@ -372,6 +439,8 @@ AtlasSession <- R6::R6Class("AtlasSession",
           segs <- atlas_run_segments(code, self$env)
           out <- truncate_output(segments_to_text(segs))
           self$checkpoint()
+          budget <- private$budget_note()
+          if (!is.null(budget)) out <- paste0(out, "\n\n", budget)
           note <- if (!is.null(private$interject)) private$interject()
           if (is.character(note) && length(note) == 1 && nzchar(note)) {
             out <- paste0(
@@ -544,10 +613,14 @@ atlas_resume <- function(dir, chat = NULL, ...) {
   s <- AtlasSession$new(data, meta$outcome, n_models = meta$n_models,
                         goal = meta$goal, constraints = meta$constraints,
                         chat = chat, dir = dir,
-                        patience = meta$patience %||% 3,
-                        min_improve = meta$min_improve %||% 0.05,
+                        stopping_rounds = meta$stopping_rounds %||%
+                          meta$patience %||% 3,
+                        stopping_tolerance = meta$stopping_tolerance %||%
+                          meta$min_improve %||% 0.05,
                         autonomous = meta$autonomous %||% FALSE,
-                        compact_at = meta$compact_at %||% 1e5, ...)
+                        compact_at = meta$compact_at %||% 1e5,
+                        max_steps = meta$max_steps %||% Inf,
+                        max_runtime = meta$max_runtime %||% Inf, ...)
   code_path <- file.path(dir, "code.rds")
   if (file.exists(code_path)) {
     s$code <- readRDS(code_path)
@@ -636,9 +709,10 @@ mb_available <- function() {
 }
 
 atlas_system_prompt <- function(n_models, has_constraints = FALSE,
-                                patience = 3, min_improve = 0.05,
+                                stopping_rounds = 3, stopping_tolerance = 0.05,
                                 has_modelblueprint = TRUE,
-                                autonomous = FALSE) {
+                                autonomous = FALSE,
+                                max_steps = Inf, max_runtime = Inf) {
   paste(
     "You are Atlas, an expert R statistician and ML engineer. You build models",
     "by writing R code and running it with the run_r_code tool. You can ask",
@@ -651,10 +725,21 @@ atlas_system_prompt <- function(n_models, has_constraints = FALSE,
     "iterative loop, such as refining features or tuning a model):",
     "- An attempt counts as an improvement only if it beats the best",
     sprintf("  validation metric so far by at least %s%% (relative).",
-            format(min_improve * 100)),
+            format(stopping_tolerance * 100)),
     sprintf("- Stop the iteration after %d consecutive attempts without improvement.",
-            as.integer(patience)),
+            as.integer(stopping_rounds)),
     "- Always say in your report why you stopped (limit reached, converged, ...).",
+    if (is.finite(max_steps) || is.finite(max_runtime)) paste0(
+      "- Hard budget, enforced mechanically (execution is BLOCKED once it",
+      "\n  runs out - budget warnings appear in tool results): ",
+      paste(c(
+        if (is.finite(max_steps)) sprintf("%d code executions",
+                                          as.integer(max_steps)),
+        if (is.finite(max_runtime)) sprintf("%.0f minutes of runtime",
+                                            max_runtime / 60)),
+        collapse = " and "),
+      ".\n  Always leave room to finalise `atlas_models`,",
+      " `atlas_leaderboard`, and the report."),
     "",
     "Workflow:",
     "1. Explore the data: dimensions, types, missingness, and the outcome's",
@@ -745,7 +830,7 @@ atlas_refine_prompt <- function(meta) {
       "2. Apply the stopping rules: stop after %d consecutive attempts ",
       "without improvement; a gain under %s%% (relative) does not count as ",
       "improvement.\n"),
-      as.integer(meta$patience), format(meta$min_improve * 100)),
+      as.integer(meta$stopping_rounds), format(meta$stopping_tolerance * 100)),
     "3. Hard constraints still apply to every attempt",
     if (length(meta$constraints) > 0) " (verify with check_constraints)",
     ".\n",

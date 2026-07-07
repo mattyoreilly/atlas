@@ -103,13 +103,17 @@ refinement alike:
 
 ```{r}
 res <- atlas(mtcars, "mpg",
-             n_models    = 5,     # at most five candidates
-             patience    = 3,     # stop after 3 attempts without improvement
-             min_improve = 0.05)  # gains under 5% (relative) don't count
+  n_models           = 5,     # at most five candidates
+  stopping_rounds    = 3,     # stop after 3 attempts without improvement
+  stopping_tolerance = 0.05)  # gains under 5% (relative) don't count
 ```
 
 The report always states *why* iteration stopped — limit reached or
-converged.
+converged. These rules are applied by the agent itself; for hard
+guarantees on unattended runs there are also mechanically enforced
+budgets, `max_steps` (code executions) and `max_runtime` (seconds) —
+once exhausted, the execution tool refuses to run further code and the
+agent must finalise from what it has.
 
 ## What you get back
 

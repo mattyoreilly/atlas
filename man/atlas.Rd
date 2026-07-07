@@ -14,14 +14,16 @@ atlas(
   dir = NULL,
   verbose = TRUE,
   max_fix_rounds = 2,
-  patience = 3,
-  min_improve = 0.05,
+  stopping_rounds = 3,
+  stopping_tolerance = 0.05,
   refine = TRUE,
   validate = TRUE,
   exclude = NULL,
   autonomous = FALSE,
   test_prop = 0,
-  compact_at = 1e+05
+  compact_at = 1e+05,
+  max_steps = Inf,
+  max_runtime = Inf
 )
 }
 \arguments{
@@ -30,8 +32,8 @@ atlas(
 \item{outcome}{Name of the outcome column (string).}
 
 \item{n_models}{Maximum number of candidate models to build; the agent
-stops earlier when the stopping rules trigger (see \code{patience} and
-\code{min_improve}).}
+stops earlier when the stopping rules trigger (see \code{stopping_rounds} and
+\code{stopping_tolerance}).}
 
 \item{goal}{Optional extra instructions (your own system-prompt additions),
 e.g. "prioritise interpretability" or "don't use tree-based models".}
@@ -58,19 +60,19 @@ run somewhere of your choosing, or pass \code{dir} explicitly.}
 \item{max_fix_rounds}{How many automatic constraint-repair rounds to allow
 after the initial build.}
 
-\item{patience}{Stopping rule: give up on an iteration (adding candidate
+\item{stopping_rounds}{Stopping rule: give up on an iteration (adding candidate
 models, or a refinement loop like "keep improving the features") after
 this many consecutive attempts without improvement.}
 
-\item{min_improve}{Stopping rule: an attempt only counts as an improvement
+\item{stopping_tolerance}{Stopping rule: an attempt only counts as an improvement
 if it beats the best validation metric so far by at least this relative
 fraction, between 0 and 1 — e.g. \code{0.05} for 5\%.}
 
 \item{refine}{After the winning algorithm is found (and constraints pass),
 keep iterating on its feature selection and engineering — one change per
 attempt, same validation scheme — until the stopping rules trigger
-(\code{patience} consecutive attempts without a relative gain of at least
-\code{min_improve}). The refined model lands in the results as
+(\code{stopping_rounds} consecutive attempts without a relative gain of at least
+\code{stopping_tolerance}). The refined model lands in the results as
 \verb{<winner>_refined}, alongside the original.}
 
 \item{validate}{Produce reviewable validation output for the winning model
@@ -86,9 +88,9 @@ agent is told to confirm anything suspicious with you before using it.}
 
 \item{autonomous}{Run with no human in the loop: the agent states its plan
 and proceeds instead of waiting for approval, and never asks questions.
-Combine with a generous \code{n_models}/\code{patience} and \code{test_prop} for
+Combine with a generous \code{n_models}/\code{stopping_rounds} and \code{test_prop} for
 unattended experimentation runs — e.g.
-\code{atlas(d, "y", autonomous = TRUE, n_models = 10, patience = 8, test_prop = 0.2)} — where the agent iterates keep/discard experiments
+\code{atlas(d, "y", autonomous = TRUE, n_models = 10, stopping_rounds = 8, test_prop = 0.2)} — where the agent iterates keep/discard experiments
 and the survivors are judged on the held-out test set at the end.}
 
 \item{test_prop}{Proportion of rows (0 to <1) to hold out as a final test
@@ -105,6 +107,13 @@ session state (models, leaderboard, code count) at no extra LLM cost.
 Keeps long runs inside the context window and stops them paying to
 re-read their own history. \code{Inf} disables. The total cost of a session
 is reported as \code{cost} in the results and by \code{print()}.}
+
+\item{max_steps, max_runtime}{Hard budgets, mechanically enforced (unlike
+the stopping rules, which the agent applies itself): the maximum number
+of code executions and wall-clock seconds for the session. The agent is
+warned in tool results as a budget nears exhaustion; past the limit,
+code execution is refused and it must finalise from what it has. \code{Inf}
+(default) disables. Recommended for \code{autonomous} runs.}
 }
 \value{
 An object of class \code{atlas}: list with \code{models} (named list of

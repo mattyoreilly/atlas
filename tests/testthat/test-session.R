@@ -26,15 +26,15 @@ test_that("session writes its inputs and checkpoints to the run dir", {
 })
 
 test_that("stopping rules are validated, stored, and reach the system prompt", {
-  expect_error(new_session(patience = 0), "patience")
-  expect_error(new_session(min_improve = -1), "min_improve")
-  expect_error(new_session(min_improve = 5), "min_improve")  # fraction, not %
+  expect_error(new_session(stopping_rounds = 0), "stopping_rounds")
+  expect_error(new_session(stopping_tolerance = -1), "stopping_tolerance")
+  expect_error(new_session(stopping_tolerance = 5), "stopping_tolerance")  # fraction, not %
 
   dir <- temp_dir()
-  s <- new_session(dir, patience = 4, min_improve = 0.025)
+  s <- new_session(dir, stopping_rounds = 4, stopping_tolerance = 0.025)
   meta <- readRDS(file.path(dir, "meta.rds"))
-  expect_equal(meta$patience, 4)
-  expect_equal(meta$min_improve, 0.025)
+  expect_equal(meta$stopping_rounds, 4)
+  expect_equal(meta$stopping_tolerance, 0.025)
   expect_match(s$chat$get_system_prompt(), "4 consecutive attempts")
   expect_match(s$chat$get_system_prompt(), "2.5% \\(relative\\)")
   expect_match(s$chat$get_system_prompt(), "up to 2 distinct candidate models")
@@ -103,6 +103,55 @@ test_that("evaluate_on_test ranks models and tolerates broken ones", {
     mtcars, "am")
   expect_equal(cls$metric, "accuracy")
   expect_true(cls$value > 0.5)
+})
+
+test_that("max_steps is a mechanical stop, not a suggestion", {
+  s <- new_session(max_steps = 2)
+  run_tool <- s$chat$get_tools()$run_r_code
+
+  expect_equal(run_tool("1 + 1"), "[1] 2")
+  out2 <- run_tool("2 + 2")
+  expect_match(out2, "^\\[1\\] 4")
+  expect_match(out2, "BUDGET WARNING")     # 80% threshold reached
+  expect_match(out2, "2 of 2 code executions")
+
+  out3 <- run_tool("3 + 3")                # over budget: refused
+  expect_match(out3, "BUDGET EXHAUSTED")
+  expect_match(out3, "step limit")
+  expect_no_match(out3, "\\[1\\] 6")       # the code did not run
+  expect_length(s$code, 2)                 # nothing was logged either
+
+  # the budget is disclosed up front
+  expect_match(s$chat$get_system_prompt(), "enforced mechanically")
+  expect_match(s$chat$get_system_prompt(), "2 code executions")
+  # and not mentioned at all when unlimited
+  expect_no_match(new_session()$chat$get_system_prompt(), "Hard budget")
+})
+
+test_that("max_runtime blocks execution after the deadline", {
+  s <- new_session(max_runtime = 0.01)     # expires almost immediately
+  Sys.sleep(0.05)
+  out <- s$chat$get_tools()$run_r_code("1 + 1")
+  expect_match(out, "BUDGET EXHAUSTED")
+  expect_match(out, "time limit")
+})
+
+test_that("an exhausted budget skips refinement and validation", {
+  skip_if_not_installed("modelblueprint")
+  chat <- FakeChat$new(list(
+    list(
+      calls = list(list(tool = "run_r_code", args = list(code = paste(
+        "atlas_models <- list(m = lm(mpg ~ wt, data));",
+        "atlas_leaderboard <- data.frame(name = 'm', metric = 'rmse', value = 3)")))),
+      reply = "built"
+    )
+  ))
+  s <- AtlasSession$new(mtcars, "mpg", chat = chat, dir = temp_dir(),
+                        max_steps = 1)
+  res <- s$build(verbose = FALSE)   # refine and validate both default TRUE
+
+  expect_length(chat$log, 1)        # no refine or validation prompts sent
+  expect_s3_class(res$models$m, "lm")
 })
 
 test_that("the context is compacted once it exceeds the token budget", {

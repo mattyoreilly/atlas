@@ -17,8 +17,8 @@ test_that("app UI builds and has the key inputs", {
   ui <- Atlas:::atlas_app_ui()
   html <- as.character(ui)
   for (id in c("file", "outcome", "n_models", "goal", "rules", "build",
-               "patience", "min_improve", "tabs", "outdir", "browse_dir",
-               "interject_ui")) {
+               "stopping_rounds", "stopping_tolerance", "tabs", "outdir",
+               "browse_dir", "interject_ui")) {
     expect_match(html, paste0("\"", id, "\""), fixed = FALSE)
   }
 })

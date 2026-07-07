@@ -191,7 +191,7 @@ test_that("build() refines the winner under the stopping rules", {
     )
   ))
   s <- AtlasSession$new(mtcars, "mpg", chat = chat, dir = dir,
-                        patience = 4, min_improve = 0.02)
+                        stopping_rounds = 4, stopping_tolerance = 0.02)
   res <- s$build(verbose = FALSE, validate = FALSE)
 
   expect_length(chat$log, 2)

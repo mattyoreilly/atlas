@@ -17,6 +17,7 @@
       - Stop the iteration after 3 consecutive attempts without improvement.
       - Always say in your report why you stopped (limit reached, converged, ...).
       
+      
       Workflow:
       1. Explore the data: dimensions, types, missingness, and the outcome's
          distribution (type, skew, zeros, bounds, outliers). Narrate briefly.
@@ -86,6 +87,7 @@
         validation metric so far by at least 5% (relative).
       - Stop the iteration after 3 consecutive attempts without improvement.
       - Always say in your report why you stopped (limit reached, converged, ...).
+      
       
       Workflow:
       1. Explore the data: dimensions, types, missingness, and the outcome's

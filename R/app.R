@@ -68,10 +68,10 @@ atlas_app_ui <- function() {
         bslib::accordion_panel(
           "When to stop",
           shiny::numericInput(
-            "patience", "Attempts in a row without improvement",
+            "stopping_rounds", "Attempts in a row without improvement",
             value = 3, min = 1, max = 10, step = 1),
           shiny::numericInput(
-            "min_improve", "Smallest improvement that counts (0.05 = 5%)",
+            "stopping_tolerance", "Smallest improvement that counts (0.05 = 5%)",
             value = 0.05, min = 0, max = 1, step = 0.01)
         )
       ),
@@ -232,8 +232,8 @@ atlas_app_server <- function(input, output, session) {
       atlas_app_worker,
       args = list(dir = dir, outcome = input$outcome,
                   n_models = input$n_models, goal = input$goal,
-                  rules = input$rules, patience = input$patience,
-                  min_improve = input$min_improve,
+                  rules = input$rules, stopping_rounds = input$stopping_rounds,
+                  stopping_tolerance = input$stopping_tolerance,
                   exclude = setdiff(setdiff(names(df), input$outcome),
                                     input$features)),
       stdout = "|", stderr = "2>&1"
@@ -493,7 +493,7 @@ atlas_load_results <- function(dir) {
 # stdout, which the app tails. With `instruction` set it resumes the existing
 # session and sends a follow-up instead of starting a fresh build.
 atlas_app_worker <- function(dir, outcome = NULL, n_models = 3, goal = NULL,
-                             rules = NULL, patience = 3, min_improve = 0.05,
+                             rules = NULL, stopping_rounds = 3, stopping_tolerance = 0.05,
                              exclude = NULL, instruction = NULL) {
   ask_via_files <- function(question) {
     qf <- file.path(dir, "question.txt")
@@ -541,7 +541,7 @@ atlas_app_worker <- function(dir, outcome = NULL, n_models = 3, goal = NULL,
   s <- Atlas::AtlasSession$new(data, outcome, n_models = n_models, goal = goal,
                                constraints = cons, dir = dir,
                                on_ask = ask_via_files, display = "markdown",
-                               patience = patience, min_improve = min_improve,
+                               stopping_rounds = stopping_rounds, stopping_tolerance = stopping_tolerance,
                                exclude = exclude,
                                interject = interject_via_files)
   s$build(verbose = TRUE)

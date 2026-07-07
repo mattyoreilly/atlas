@@ -68,9 +68,12 @@ res$session$tell("why did the refined model win?")   # keep talking
 ```
 
 Convergence is under your control: `n_models` is a maximum, and the
-stopping rules — `patience` attempts without improvement, gains under
-`min_improve` don’t count — govern both candidate building and
-refinement.
+stopping rules (H2O-style names) govern both candidate building and
+refinement — `stopping_rounds` consecutive attempts without improvement
+end an iteration, and gains under `stopping_tolerance` don’t count. For
+hard guarantees, `max_steps` and `max_runtime` are mechanically
+enforced: past those budgets the agent’s code execution is blocked
+outright.
 
 ## Constraints
 
@@ -106,8 +109,9 @@ overfitting the agent’s own validation scheme:
 ``` r
 res <- atlas(claims, "severity",
              autonomous = TRUE,
-             n_models = 10, patience = 8,   # room to explore
-             test_prop = 0.2)               # the ungameable judge
+             n_models = 10, stopping_rounds = 8,  # room to explore
+             max_steps = 300,                     # hard cap, enforced in code
+             test_prop = 0.2)                     # the ungameable judge
 
 res$test_leaderboard   # held-out performance, best first
 ```
