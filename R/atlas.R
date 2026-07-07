@@ -66,6 +66,13 @@
 #'   a ranking the agent can't overfit. Reported as `test_leaderboard` in
 #'   the results and saved to `test_leaderboard.csv` in the run directory.
 #'   `0` (default) disables the split.
+#' @param compact_at Token budget for the conversation. Past this many input
+#'   tokens the context is compacted: the transcript is archived to the run
+#'   directory and the agent is re-oriented with a briefing built from the
+#'   session state (models, leaderboard, code count) at no extra LLM cost.
+#'   Keeps long runs inside the context window and stops them paying to
+#'   re-read their own history. `Inf` disables. The total cost of a session
+#'   is reported as `cost` in the results and by `print()`.
 #' @return An object of class `atlas`: list with `models` (named list of
 #'   fitted models), `leaderboard` (data.frame of validation metrics),
 #'   `test_leaderboard` (held-out test metrics, when `test_prop > 0`),
@@ -93,12 +100,12 @@ atlas <- function(data, outcome, n_models = 3, goal = NULL,
                   verbose = TRUE, max_fix_rounds = 2,
                   patience = 3, min_improve = 0.05, refine = TRUE,
                   validate = TRUE, exclude = NULL,
-                  autonomous = FALSE, test_prop = 0) {
+                  autonomous = FALSE, test_prop = 0, compact_at = 1e5) {
   session <- AtlasSession$new(data, outcome, n_models = n_models, goal = goal,
                               constraints = constraints, chat = chat, dir = dir,
                               patience = patience, min_improve = min_improve,
                               exclude = exclude, autonomous = autonomous,
-                              test_prop = test_prop)
+                              test_prop = test_prop, compact_at = compact_at)
   session$build(verbose = verbose, max_fix_rounds = max_fix_rounds,
                 refine = refine, validate = validate)
   session$results()
@@ -133,6 +140,9 @@ print.atlas <- function(x, ...) {
     cat("\n")
     cli::cli_rule(left = "report")
     cat(x$report, "\n")
+  }
+  if (!is.null(x$cost)) {
+    cat("\nLLM cost of this session:", format(x$cost), "\n")
   }
   invisible(x)
 }

@@ -105,6 +105,47 @@ test_that("evaluate_on_test ranks models and tolerates broken ones", {
   expect_true(cls$value > 0.5)
 })
 
+test_that("the context is compacted once it exceeds the token budget", {
+  dir <- temp_dir()
+  chat <- FakeChat$new(list(list(reply = "ok"), list(reply = "still ok")))
+  s <- AtlasSession$new(mtcars, "mpg", chat = chat, dir = dir,
+                        compact_at = 5000)
+
+  chat$context_tokens <- 1000        # under budget: no compaction
+  s$tell("first", verbose = FALSE)
+  expect_equal(chat$turns_cleared, 0L)
+  expect_no_match(chat$log[1], "compacted")
+
+  # build the model in the agent's own env (as real runs do), so its formula
+  # environment doesn't drag the test frame into the serialized artifacts
+  Atlas:::atlas_run_code(
+    "atlas_models <- list(m1 = lm(mpg ~ wt, data))
+     atlas_leaderboard <- data.frame(name = 'm1', metric = 'rmse', value = 3)",
+    s$env)
+  chat$context_tokens <- 50000       # over budget: compact before sending
+  s$tell("second", verbose = FALSE)
+  expect_equal(chat$turns_cleared, 1L)
+
+  # transcript archived, and the briefing re-orients from session state
+  expect_length(list.files(dir, pattern = "^turns-archive-"), 1)
+  expect_match(chat$log[2], "compacted to save tokens")
+  expect_match(chat$log[2], "m1")
+  expect_match(chat$log[2], "\\| m1 \\| rmse \\| 3 \\|")
+  expect_match(chat$log[2], "second")   # the actual message still arrives
+
+  # cost is surfaced in the results
+  res <- s$results()
+  expect_equal(res$cost, 0.0123)
+  expect_output(print(res), "LLM cost")
+})
+
+test_that("manual compact() is a no-op on an empty conversation", {
+  chat <- FakeChat$new()
+  s <- AtlasSession$new(mtcars, "mpg", chat = chat, dir = temp_dir())
+  s$compact()
+  expect_equal(chat$turns_cleared, 0L)  # nothing to archive or clear
+})
+
 test_that("the atlas.dir option controls where runs are saved", {
   base <- temp_dir()
   old <- options(atlas.dir = base)

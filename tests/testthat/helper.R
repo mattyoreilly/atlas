@@ -7,15 +7,22 @@
 # should know exactly how many turns they expect.
 FakeChat <- R6::R6Class("FakeChat",
   public = list(
-    log = character(),   # every prompt received, in order
+    log = character(),        # every prompt received, in order
+    context_tokens = 0,       # settable: pretend context size for get_tokens
+    turns_cleared = 0L,       # how many times set_turns() wiped the window
 
     initialize = function(script = list()) private$script <- script,
+    get_tokens = function() data.frame(input = self$context_tokens),
+    get_cost = function(include = "all") 0.0123,
     set_system_prompt = function(x) private$sys <- x,
     get_system_prompt = function() private$sys,
     register_tool = function(t) private$tools[[t@name]] <- t,
     get_tools = function() private$tools,
     get_turns = function() as.list(self$log),
-    set_turns = function(turns) invisible(turns),
+    set_turns = function(turns) {
+      if (length(turns) == 0) self$turns_cleared <- self$turns_cleared + 1L
+      invisible(turns)
+    },
     chat = function(text, echo = "none") private$step(text),
     stream = function(text, ...) {
       reply <- private$step(text)

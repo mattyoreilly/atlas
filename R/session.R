@@ -89,12 +89,20 @@ AtlasSession <- R6::R6Class("AtlasSession",
     #'   by Atlas itself after the run (`$results()$test_leaderboard`), so
     #'   the comparison can't be gamed by overfitting the agent's own
     #'   validation scheme. `0` (default) disables the split.
+    #' @param compact_at Token budget for the conversation. When the context
+    #'   grows past this many input tokens, it is compacted before the next
+    #'   message: the transcript is archived to the run directory, the
+    #'   window is cleared, and the agent is re-oriented with a briefing
+    #'   built from the session state (no extra LLM call). Long runs stay
+    #'   inside the model's context window and stop paying to re-read their
+    #'   own history. Set to `Inf` to disable.
     initialize = function(data, outcome, n_models = 3, goal = NULL,
                           constraints = NULL, chat = NULL, dir = NULL,
                           on_ask = NULL, display = c("console", "markdown"),
                           patience = 3, min_improve = 0.05, exclude = NULL,
                           interject = NULL, autonomous = FALSE,
-                          test_prop = 0) {
+                          test_prop = 0, compact_at = 1e5) {
+      private$compact_at <- compact_at
       private$on_ask <- on_ask
       private$interject <- interject
       private$display <- match.arg(display)
@@ -121,7 +129,8 @@ AtlasSession <- R6::R6Class("AtlasSession",
                            constraints = normalize_constraints(constraints),
                            patience = patience, min_improve = min_improve,
                            exclude = exclude, leakage = leakage,
-                           autonomous = autonomous, test_prop = test_prop)
+                           autonomous = autonomous, test_prop = test_prop,
+                           compact_at = compact_at)
       self$dir <- path.expand(
         dir %||% file.path(getOption("atlas.dir", ".atlas"),
                            format(Sys.time(), "%Y%m%d-%H%M%S")))
@@ -212,6 +221,13 @@ AtlasSession <- R6::R6Class("AtlasSession",
     tell = function(text, verbose = TRUE) {
       stopifnot(is.character(text), length(text) == 1)
       private$verbose <- verbose
+      if (private$context_tokens() >= private$compact_at) {
+        self$compact()
+      }
+      if (private$compacted) {
+        text <- paste0(atlas_compact_briefing(self), "\n\n---\n\n", text)
+        private$compacted <- FALSE
+      }
       if (verbose) {
         # stream narration as plain text; tools print their own blocks
         stream <- self$chat$stream(text)
@@ -255,9 +271,37 @@ AtlasSession <- R6::R6Class("AtlasSession",
              test_leaderboard = test_lb,
              constraints = self$check(),
              report = private$last_report, code = self$code,
+             cost = tryCatch(self$chat$get_cost(), error = function(e) NULL),
              dir = self$dir, session = self),
         class = "atlas"
       )
+    },
+
+    #' @description Compact the conversation to save tokens: archive the
+    #'   transcript to the run directory, clear the context window, and
+    #'   re-orient the agent with a state briefing on the next message. The
+    #'   R environment (models, data) and code log are untouched — they are
+    #'   the durable memory. Called automatically when the context exceeds
+    #'   `compact_at`; call it yourself before a long follow-up to start
+    #'   from a lean window.
+    compact = function() {
+      turns <- self$chat$get_turns()
+      if (length(turns) == 0) return(invisible(self))
+      n <- length(list.files(self$dir, pattern = "^turns-archive-")) + 1
+      saveRDS(turns, file.path(self$dir, sprintf("turns-archive-%02d.rds", n)))
+      self$chat$set_turns(list())
+      private$compacted <- TRUE
+      if (private$verbose) {
+        if (identical(private$display, "markdown")) {
+          cat("\n> **Context compacted** to save tokens; the full",
+              "transcript is archived in the run directory.\n\n")
+        } else {
+          cli::cli_alert_info(paste(
+            "Context compacted to save tokens; full transcript archived",
+            "in the run directory."))
+        }
+      }
+      invisible(self)
     },
 
     #' @description Write the current code log and conversation to the run
@@ -284,6 +328,18 @@ AtlasSession <- R6::R6Class("AtlasSession",
   private = list(
     meta = NULL,
     last_report = NULL,
+    compact_at = 1e5,
+    compacted = FALSE,
+
+    # tokens of the most recent request = current context size; cached
+    # input still occupies the window, so count it too
+    context_tokens = function() {
+      t <- tryCatch(self$chat$get_tokens(), error = function(e) NULL)
+      if (is.null(t) || nrow(t) == 0) return(0)
+      last <- t[nrow(t), , drop = FALSE]
+      cached <- if ("cached_input" %in% names(t)) last$cached_input else 0
+      sum(last$input, cached, na.rm = TRUE)
+    },
 
     fix_constraints = function(max_fix_rounds, verbose) {
       for (round in seq_len(max_fix_rounds)) {
@@ -490,7 +546,8 @@ atlas_resume <- function(dir, chat = NULL, ...) {
                         chat = chat, dir = dir,
                         patience = meta$patience %||% 3,
                         min_improve = meta$min_improve %||% 0.05,
-                        autonomous = meta$autonomous %||% FALSE, ...)
+                        autonomous = meta$autonomous %||% FALSE,
+                        compact_at = meta$compact_at %||% 1e5, ...)
   code_path <- file.path(dir, "code.rds")
   if (file.exists(code_path)) {
     s$code <- readRDS(code_path)
@@ -503,6 +560,25 @@ atlas_resume <- function(dir, chat = NULL, ...) {
   test_path <- file.path(dir, "test.rds")
   if (file.exists(test_path)) s$test_data <- readRDS(test_path)
   s
+}
+
+# Post-compaction re-orientation, built from session state rather than an
+# LLM summary: costs nothing and can't invent anything.
+atlas_compact_briefing <- function(s) {
+  models <- s$env$atlas_models
+  lb <- s$env$atlas_leaderboard
+  paste0(
+    "NOTE: this conversation was compacted to save tokens. Nothing else was",
+    " lost - your R session is fully intact:\n",
+    "- models in `atlas_models`: ",
+    if (length(models)) paste(names(models), collapse = ", ") else "none yet",
+    "\n- current leaderboard:\n",
+    if (is.data.frame(lb) && nrow(lb) > 0) md_table(lb) else "(none yet)",
+    "\n- ", length(s$code), " code chunks executed so far (full log in",
+    " code.R in the run directory)\n",
+    "Re-orient by printing objects if you are unsure of any detail, then",
+    " continue with the task below."
+  )
 }
 
 # Deterministic sample that leaves the caller's RNG stream untouched.

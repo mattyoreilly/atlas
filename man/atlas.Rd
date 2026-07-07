@@ -20,7 +20,8 @@ atlas(
   validate = TRUE,
   exclude = NULL,
   autonomous = FALSE,
-  test_prop = 0
+  test_prop = 0,
+  compact_at = 1e+05
 )
 }
 \arguments{
@@ -96,6 +97,14 @@ final model on it (RMSE for continuous outcomes, accuracy otherwise) —
 a ranking the agent can't overfit. Reported as \code{test_leaderboard} in
 the results and saved to \code{test_leaderboard.csv} in the run directory.
 \code{0} (default) disables the split.}
+
+\item{compact_at}{Token budget for the conversation. Past this many input
+tokens the context is compacted: the transcript is archived to the run
+directory and the agent is re-oriented with a briefing built from the
+session state (models, leaderboard, code count) at no extra LLM cost.
+Keeps long runs inside the context window and stops them paying to
+re-read their own history. \code{Inf} disables. The total cost of a session
+is reported as \code{cost} in the results and by \code{print()}.}
 }
 \value{
 An object of class \code{atlas}: list with \code{models} (named list of

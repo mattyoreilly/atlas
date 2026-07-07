@@ -56,6 +56,7 @@ placed in the agent's environment.}
     \item \href{#method-AtlasSession-check}{\code{AtlasSession$check()}}
     \item \href{#method-AtlasSession-tell}{\code{AtlasSession$tell()}}
     \item \href{#method-AtlasSession-results}{\code{AtlasSession$results()}}
+    \item \href{#method-AtlasSession-compact}{\code{AtlasSession$compact()}}
     \item \href{#method-AtlasSession-checkpoint}{\code{AtlasSession$checkpoint()}}
     \item \href{#method-AtlasSession-print}{\code{AtlasSession$print()}}
     \item \href{#method-AtlasSession-clone}{\code{AtlasSession$clone()}}
@@ -83,7 +84,8 @@ placed in the agent's environment.}
   exclude = NULL,
   interject = NULL,
   autonomous = FALSE,
-  test_prop = 0
+  test_prop = 0,
+  compact_at = 1e+05
 )}
     \if{html}{\out{</div>}}
   }
@@ -136,6 +138,13 @@ test set \strong{the agent never sees}. Final models are evaluated on it
 by Atlas itself after the run (\verb{$results()$test_leaderboard}), so
 the comparison can't be gamed by overfitting the agent's own
 validation scheme. \code{0} (default) disables the split.}
+      \item{\code{compact_at}}{Token budget for the conversation. When the context
+grows past this many input tokens, it is compacted before the next
+message: the transcript is archived to the run directory, the
+window is cleared, and the agent is re-oriented with a briefing
+built from the session state (no extra LLM call). Long runs stay
+inside the model's context window and stop paying to re-read their
+own history. Set to \code{Inf} to disable.}
     }
     \if{html}{\out{</div>}}
   }
@@ -238,6 +247,24 @@ report, and the full code trail.
     An object of class \code{atlas}: list with \code{models} (named list of
 fitted models), \code{leaderboard} (data.frame of validation metrics),
 \code{report} (markdown), \code{code}, \code{dir}, and \code{session} (this object).
+  }
+}
+
+\if{html}{\out{<hr>}}
+\if{html}{\out{<a id="method-AtlasSession-compact"></a>}}
+\if{latex}{\out{\hypertarget{method-AtlasSession-compact}{}}}
+\subsection{\code{AtlasSession$compact()}}{
+  Compact the conversation to save tokens: archive the
+transcript to the run directory, clear the context window, and
+re-orient the agent with a state briefing on the next message. The
+R environment (models, data) and code log are untouched — they are
+the durable memory. Called automatically when the context exceeds
+\code{compact_at}; call it yourself before a long follow-up to start
+from a lean window.
+  \subsection{Usage}{
+    \if{html}{\out{<div class="r">}}
+    \preformatted{AtlasSession$compact()}
+    \if{html}{\out{</div>}}
   }
 }
 
