@@ -122,6 +122,26 @@ test_that("build() requests modelblueprint validation for the winner", {
   expect_match(chat$log[2], "Do NOT create any other artifacts")
 })
 
+test_that("without modelblueprint, validation is skipped cleanly", {
+  testthat::local_mocked_bindings(mb_available = function() FALSE)
+  chat <- FakeChat$new(list(
+    list(
+      calls = list(list(tool = "run_r_code", args = list(code = paste(
+        "atlas_models <- list(m = lm(mpg ~ wt, data));",
+        "atlas_leaderboard <- data.frame(name = 'm', metric = 'rmse', value = 3)")))),
+      reply = "built"
+    )
+  ))
+  s <- AtlasSession$new(mtcars, "mpg", chat = chat, dir = temp_dir())
+
+  # the agent is never told about modelblueprint or its file-write exception
+  expect_no_match(s$chat$get_system_prompt(), "modelblueprint")
+
+  res <- s$build(verbose = FALSE, refine = FALSE)  # validate = TRUE (default)
+  expect_length(chat$log, 1)                       # no validation prompt sent
+  expect_s3_class(res$models$m, "lm")
+})
+
 test_that("build() refines the winner under the stopping rules", {
   dir <- temp_dir()
   chat <- FakeChat$new(list(

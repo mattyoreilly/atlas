@@ -116,7 +116,8 @@ AtlasSession <- R6::R6Class("AtlasSession",
       self$chat <- chat %||% ellmer::chat_anthropic()
       sys_prompt <- atlas_system_prompt(
         n_models, length(private$meta$constraints) > 0,
-        patience = patience, min_improve = min_improve)
+        patience = patience, min_improve = min_improve,
+        has_modelblueprint = mb_available())
       if (identical(private$display, "markdown")) {
         sys_prompt <- paste0(
           sys_prompt, "\n\nYour narration and code output are rendered as",
@@ -161,9 +162,14 @@ AtlasSession <- R6::R6Class("AtlasSession",
         self$tell(atlas_refine_prompt(private$meta), verbose = verbose)
         private$fix_constraints(max_fix_rounds, verbose)
       }
-      if (validate && !is.null(self$env$atlas_models) &&
-          requireNamespace("modelblueprint", quietly = TRUE)) {
-        self$tell(atlas_validation_prompt(self$dir), verbose = verbose)
+      if (validate && !is.null(self$env$atlas_models)) {
+        if (mb_available()) {
+          self$tell(atlas_validation_prompt(self$dir), verbose = verbose)
+        } else if (verbose) {
+          cli::cli_alert_info(paste(
+            "modelblueprint is not installed; skipping the validation",
+            "workup for the winning model."))
+        }
       }
       invisible(self$results())
     },
@@ -467,8 +473,15 @@ atlas_resume <- function(dir, chat = NULL, ...) {
   s
 }
 
+# modelblueprint is optional: only mention it to the agent (and only allow
+# its file writes) when it is actually installed
+mb_available <- function() {
+  requireNamespace("modelblueprint", quietly = TRUE)
+}
+
 atlas_system_prompt <- function(n_models, has_constraints = FALSE,
-                                patience = 3, min_improve = 0.05) {
+                                patience = 3, min_improve = 0.05,
+                                has_modelblueprint = TRUE) {
   paste(
     "You are Atlas, an expert R statistician and ML engineer. You build models",
     "by writing R code and running it with the run_r_code tool. You can ask",
@@ -524,9 +537,13 @@ atlas_system_prompt <- function(n_models, has_constraints = FALSE,
     "   validation performance; a recommendation of which model to use.",
     "",
     "Rules:",
-    "- Never call install.packages() or access the network. Never read or",
-    "  write files, with one exception: modelblueprint::model_validation()",
-    "  may write into the run directory when a task asks for it.",
+    if (has_modelblueprint) paste0(
+      "- Never call install.packages() or access the network. Never read or",
+      "\n  write files, with one exception: modelblueprint::model_validation()",
+      "\n  may write into the run directory when a task asks for it.")
+    else paste0(
+      "- Never call install.packages(), read or write files, or access the",
+      "\n  network."),
     "- Prefer base R; check optional packages with requireNamespace() and fall",
     "  back gracefully if missing.",
     "- Keep each code chunk small; inspect output before continuing.",
