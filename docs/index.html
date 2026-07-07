@@ -4,90 +4,64 @@
 <meta http-equiv="Content-Type" content="text/html; charset=UTF-8">
 <meta charset="utf-8">
 <meta http-equiv="X-UA-Compatible" content="IE=edge">
-<meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>Automated Model Building with LLM Agents • Atlas</title>
-<!-- jquery --><script src="https://cdnjs.cloudflare.com/ajax/libs/jquery/3.7.1/jquery.min.js" integrity="sha512-v2CJ7UaYy4JwqLDIrZUI/4hqeoQieOmAZNXBeQyjo21dadnwR+8ZaIJVT8EE2iyI61OV8e6M8PP2/4hpQINQ/g==" crossorigin="anonymous" referrerpolicy="no-referrer"></script><!-- Bootstrap --><link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/twitter-bootstrap/3.4.1/css/bootstrap.min.css" integrity="sha256-bZLfwXAP04zRMK2BjiO8iu9pf4FbLqX6zitd+tIvLhE=" crossorigin="anonymous">
-<script src="https://cdnjs.cloudflare.com/ajax/libs/twitter-bootstrap/3.4.1/js/bootstrap.min.js" integrity="sha256-nuL8/2cJ5NDSSwnKD8VqreErSWHtnEP9E7AySL+1ev4=" crossorigin="anonymous"></script><!-- bootstrap-toc --><link rel="stylesheet" href="bootstrap-toc.css">
-<script src="bootstrap-toc.js"></script><!-- Font Awesome icons --><link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/5.12.1/css/all.min.css" integrity="sha256-mmgLkCYLUQbXn0B1SRqzHar6dCnv9oZFPEC1g1cwlkk=" crossorigin="anonymous">
-<link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/5.12.1/css/v4-shims.min.css" integrity="sha256-wZjR52fzng1pJHwx4aV2AO3yyTOXrcDW7jBpJtTwVxw=" crossorigin="anonymous">
-<!-- clipboard.js --><script src="https://cdnjs.cloudflare.com/ajax/libs/clipboard.js/2.0.6/clipboard.min.js" integrity="sha256-inc5kl9MA1hkeYUt+EC3BhlIgyp/2jDIyBLS6k3UxPI=" crossorigin="anonymous"></script><!-- headroom.js --><script src="https://cdnjs.cloudflare.com/ajax/libs/headroom/0.11.0/headroom.min.js" integrity="sha256-AsUX4SJE1+yuDu5+mAVzJbuYNPHj/WroHuZ8Ir/CkE0=" crossorigin="anonymous"></script><script src="https://cdnjs.cloudflare.com/ajax/libs/headroom/0.11.0/jQuery.headroom.min.js" integrity="sha256-ZX/yNShbjqsohH1k95liqY9Gd8uOiE1S4vZc+9KQ1K4=" crossorigin="anonymous"></script><!-- pkgdown --><link href="pkgdown.css" rel="stylesheet">
-<script src="pkgdown.js"></script><meta property="og:title" content="Automated Model Building with LLM Agents">
-<meta property="og:description" content="Builds statistical and machine learning models by driving an agentic large language model loop via ellmer. The agent explores the data, proposes a modelling plan for user approval, then writes and runs R code to fit, compare, and refine candidate models. Domain knowledge can be supplied as machine-verified constraints (mandatory variables, monotone effects, custom checks), every step is checkpointed to disk so sessions survive interruption and can be resumed, and the complete code trail is returned for reproducibility. Data never leaves the local R session; the model only sees column metadata and printed summaries.">
-<!-- mathjax --><script src="https://cdnjs.cloudflare.com/ajax/libs/mathjax/2.7.5/MathJax.js" integrity="sha256-nvJJv9wWKEm88qvoQl9ekL2J+k/RWIsaSScxxlsrv8k=" crossorigin="anonymous"></script><script src="https://cdnjs.cloudflare.com/ajax/libs/mathjax/2.7.5/config/TeX-AMS-MML_HTMLorMML.js" integrity="sha256-84DKXVJXs0/F8OTMzX4UR909+jtl4G7SPypPavF+GfA=" crossorigin="anonymous"></script><!--[if lt IE 9]>
-<script src="https://oss.maxcdn.com/html5shiv/3.7.3/html5shiv.min.js"></script>
-<script src="https://oss.maxcdn.com/respond/1.4.2/respond.min.js"></script>
-<![endif]-->
+<meta name="viewport" content="width=device-width, initial-scale=1, shrink-to-fit=no">
+<title>atlas — automated model building with LLM agents • atlas</title>
+<script src="deps/jquery-3.6.0/jquery-3.6.0.min.js"></script><meta name="viewport" content="width=device-width, initial-scale=1, shrink-to-fit=no">
+<link href="deps/bootstrap-5.3.8/bootstrap.min.css" rel="stylesheet">
+<script src="deps/bootstrap-5.3.8/bootstrap.bundle.min.js"></script><link href="deps/font-awesome-6.5.2/css/all.min.css" rel="stylesheet">
+<link href="deps/font-awesome-6.5.2/css/v4-shims.min.css" rel="stylesheet">
+<script src="deps/headroom-0.11.0/headroom.min.js"></script><script src="deps/headroom-0.11.0/jQuery.headroom.min.js"></script><script src="deps/bootstrap-toc-1.0.1/bootstrap-toc.min.js"></script><script src="deps/clipboard.js-2.0.11/clipboard.min.js"></script><script src="deps/search-1.0.0/autocomplete.jquery.min.js"></script><script src="deps/search-1.0.0/fuse.min.js"></script><script src="deps/search-1.0.0/mark.min.js"></script><!-- pkgdown --><script src="pkgdown.js"></script><meta property="og:title" content="atlas — automated model building with LLM agents">
+<meta name="description" content="Give an LLM agent a data frame and a target. It explores the data, proposes a plan for your approval, then writes and runs R code to fit, compare, and refine candidate models — with enforced constraints, persistent sessions, and a complete code trail.
+">
+<meta property="og:description" content="Give an LLM agent a data frame and a target. It explores the data, proposes a plan for your approval, then writes and runs R code to fit, compare, and refine candidate models — with enforced constraints, persistent sessions, and a complete code trail.
+">
 </head>
-<body data-spy="scroll" data-target="#toc">
+<body>
+    <a href="#main" class="visually-hidden-focusable">Skip to contents</a>
 
 
-    <div class="container template-home">
-      <header><div class="navbar navbar-default navbar-fixed-top" role="navigation">
-  <div class="container">
-    <div class="navbar-header">
-      <button type="button" class="navbar-toggle collapsed" data-toggle="collapse" data-target="#navbar" aria-expanded="false">
-        <span class="sr-only">Toggle navigation</span>
-        <span class="icon-bar"></span>
-        <span class="icon-bar"></span>
-        <span class="icon-bar"></span>
-      </button>
-      <span class="navbar-brand">
-        <a class="navbar-link" href="index.html">Atlas</a>
-        <span class="version label label-default" data-toggle="tooltip" data-placement="bottom" title="">0.1.0</span>
-      </span>
-    </div>
+    <nav class="navbar navbar-expand-lg fixed-top bg-light" data-bs-theme="light" aria-label="Site navigation"><div class="container">
 
-    <div id="navbar" class="navbar-collapse collapse">
-      <ul class="nav navbar-nav">
-<li>
-  <a href="reference/index.html">Reference</a>
-</li>
-<li class="dropdown">
-  <a href="#" class="dropdown-toggle" data-toggle="dropdown" role="button" data-bs-toggle="dropdown" aria-expanded="false">
-    Articles
+    <a class="navbar-brand me-2" href="index.html">atlas</a>
 
-    <span class="caret"></span>
-  </a>
-  <ul class="dropdown-menu" role="menu">
-<li>
-      <a href="articles/atlas.html">Getting started with Atlas</a>
-    </li>
-    <li>
-      <a href="articles/constraints.html">Domain knowledge and constraints</a>
-    </li>
-    <li>
-      <a href="articles/sessions.html">Persistent sessions</a>
-    </li>
+    <small class="nav-text text-muted me-auto" data-bs-toggle="tooltip" data-bs-placement="bottom" title="">0.1.0</small>
+
+
+    <button class="navbar-toggler" type="button" data-bs-toggle="collapse" data-bs-target="#navbar" aria-controls="navbar" aria-expanded="false" aria-label="Toggle navigation">
+      <span class="navbar-toggler-icon"></span>
+    </button>
+
+    <div id="navbar" class="collapse navbar-collapse ms-3">
+      <ul class="navbar-nav me-auto">
+<li class="nav-item"><a class="nav-link" href="articles/atlas.html">Get started</a></li>
+<li class="nav-item"><a class="nav-link" href="reference/index.html">Reference</a></li>
+<li class="nav-item dropdown">
+  <button class="nav-link dropdown-toggle" type="button" id="dropdown-articles" data-bs-toggle="dropdown" aria-expanded="false" aria-haspopup="true">Articles</button>
+  <ul class="dropdown-menu" aria-labelledby="dropdown-articles">
+<li><a class="dropdown-item" href="articles/constraints.html">Domain knowledge and constraints</a></li>
+    <li><a class="dropdown-item" href="articles/sessions.html">Persistent sessions</a></li>
+    <li><a class="dropdown-item" href="articles/autonomous.html">Unattended runs</a></li>
   </ul>
 </li>
-<li>
-  <a href="news/index.html">Changelog</a>
-</li>
+<li class="nav-item"><a class="nav-link" href="news/index.html">Changelog</a></li>
       </ul>
-<ul class="nav navbar-nav navbar-right">
-<li>
-  <a href="https://github.com/mattyoreilly/Atlas/" class="external-link">
-    <span class="fab fa-github fa-lg"></span>
-
-  </a>
-</li>
+<ul class="navbar-nav">
+<li class="nav-item"><form class="form-inline" role="search">
+ <input class="form-control" type="search" name="search-input" id="search-input" autocomplete="off" aria-label="Search site" placeholder="Search for" data-search-index="search.json">
+</form></li>
+<li class="nav-item"><a class="external-link nav-link" href="https://github.com/mattyoreilly/Atlas/" aria-label="GitHub"><span class="fa fab fa-github fa-lg"></span></a></li>
       </ul>
 </div>
-<!--/.nav-collapse -->
+
+
   </div>
-<!--/.container -->
-</div>
-<!--/.navbar -->
-
-
-
-      </header><div class="row">
-  <div class="contents col-md-9">
-<div class="section level1">
-<div class="page-header"><h1 id="atlas">Atlas<a class="anchor" aria-label="anchor" href="#atlas"></a>
+</nav><div class="container template-home">
+<div class="row">
+  <main id="main" class="col-md-9"><div class="section level1">
+<div class="page-header"><h1 id="atlas">atlas<a class="anchor" aria-label="anchor" href="#atlas"></a>
 </h1></div>
 <p>Atlas builds models for you, and shows its work. Give it a data frame and a target; an LLM agent (via <a href="https://ellmer.tidyverse.org" class="external-link">ellmer</a>) explores the data, proposes a modeling plan for your approval, then writes and runs R code to fit, compare, and refine candidate models. You get back fitted models ready for <code><a href="https://rdrr.io/r/stats/predict.html" class="external-link">predict()</a></code>, a leaderboard, a written report — and, because the agent works by writing R, the complete script of everything it did.</p>
-<p>Three ideas separate Atlas from “ask a chatbot for model code”:</p>
+<p>Three ideas separate atlas from “ask a chatbot for model code”:</p>
 <ul>
 <li><p><strong>Domain knowledge is enforced, not suggested.</strong> Constraints like “<code>wt</code> must be used” or “predictions must never rise with horsepower” are machine-verified against every final model, and violations are sent back to the agent to fix.</p></li>
 <li><p><strong>Sessions are persistent.</strong> Every code chunk and conversation turn is checkpointed to disk as it happens. A crash, a restart, or a deliberate interruption loses nothing — resume and keep going.</p></li>
@@ -96,35 +70,50 @@
 <div class="section level2">
 <h2 id="installation">Installation<a class="anchor" aria-label="anchor" href="#installation"></a>
 </h2>
-<p>Atlas is not yet on CRAN. Install the development version from <a href="https://github.com/mattyoreilly/Atlas" class="external-link">GitHub</a>:</p>
+<p>atlas is not yet on CRAN. Install the development version from <a href="https://github.com/mattyoreilly/Atlas" class="external-link">GitHub</a>:</p>
 <div class="sourceCode" id="cb1"><pre class="downlit sourceCode r">
 <code class="sourceCode R"><span><span class="co"># install.packages("pak")</span></span>
-<span><span class="fu">pak</span><span class="fu">::</span><span class="fu"><a href="https://pak.r-lib.org/reference/pkg_install.html" class="external-link">pkg_install</a></span><span class="op">(</span><span class="st">"mattyoreilly/Atlas"</span><span class="op">)</span></span>
-<span></span>
-<span><span class="co"># or</span></span>
-<span><span class="co"># install.packages("remotes")</span></span>
-<span><span class="fu">remotes</span><span class="fu">::</span><span class="fu"><a href="https://remotes.r-lib.org/reference/install_github.html" class="external-link">install_github</a></span><span class="op">(</span><span class="st">"mattyoreilly/Atlas"</span><span class="op">)</span></span></code></pre></div>
-<p>You also need an API key for an LLM provider. Atlas defaults to Anthropic: run <code><a href="https://usethis.r-lib.org/reference/edit.html" class="external-link">usethis::edit_r_environ()</a></code>, add a line <code>ANTHROPIC_API_KEY=sk-ant-...</code>, save, and restart R. Any tool-capable ellmer provider works via the <code>chat</code> argument.</p>
+<span><span class="fu">pak</span><span class="fu">::</span><span class="fu"><a href="https://pak.r-lib.org/reference/pkg_install.html" class="external-link">pkg_install</a></span><span class="op">(</span><span class="st">"mattyoreilly/Atlas"</span><span class="op">)</span></span></code></pre></div>
+<p>You also need an API key for an LLM provider. atlas defaults to Anthropic: run <code><a href="https://usethis.r-lib.org/reference/edit.html" class="external-link">usethis::edit_r_environ()</a></code>, add a line <code>ANTHROPIC_API_KEY=sk-ant-...</code>, save, and restart R. Any tool-capable ellmer provider works via the <code>chat</code> argument — OpenAI, Gemini, Bedrock, or a local model through Ollama.</p>
 </div>
 <div class="section level2">
 <h2 id="usage">Usage<a class="anchor" aria-label="anchor" href="#usage"></a>
 </h2>
 <div class="sourceCode" id="cb2"><pre class="downlit sourceCode r">
-<code class="sourceCode R"><span><span class="kw"><a href="https://rdrr.io/r/base/library.html" class="external-link">library</a></span><span class="op">(</span><span class="va"><a href="https://github.com/mattyoreilly/Atlas" class="external-link">Atlas</a></span><span class="op">)</span></span>
+<code class="sourceCode R"><span><span class="kw"><a href="https://rdrr.io/r/base/library.html" class="external-link">library</a></span><span class="op">(</span><span class="va"><a href="https://github.com/mattyoreilly/Atlas" class="external-link">atlas</a></span><span class="op">)</span></span>
 <span></span>
 <span><span class="va">res</span> <span class="op">&lt;-</span> <span class="fu"><a href="reference/atlas.html">atlas</a></span><span class="op">(</span><span class="va">mtcars</span>, outcome <span class="op">=</span> <span class="st">"mpg"</span>, goal <span class="op">=</span> <span class="st">"prioritise interpretability"</span><span class="op">)</span></span></code></pre></div>
-<p>The agent narrates as it works. It profiles the data (flagging suspected target leakage), proposes a plan — model families chosen to match the outcome’s distribution, a validation scheme, any monotonicity it thinks the domain implies — and <strong>waits for your approval in the console</strong>. You can answer “yes”, or redirect it: “only linear models, and don’t use qsec”. Then it builds up to <code>n_models</code> candidates, compares them on held-out data, refines the winner’s features until improvement stalls, and verifies any constraints.</p>
+<p>The agent narrates as it works. It profiles the data (flagging suspected target leakage), proposes a plan — model families chosen to match the outcome’s distribution, a seeded validation scheme, any monotone effects it believes the domain implies — and <strong>waits for your approval in the console</strong>. You can answer “yes”, or redirect it: “only linear models, and don’t use qsec”. Then it builds up to <code>n_models</code> candidates, compares them on held-out data, refines the winner’s features until improvement stalls, verifies any constraints, and — with <a href="https://mattyoreilly.github.io/modelblueprint/" class="external-link">modelblueprint</a> installed — writes a full validation workup (gain, calibration, grouped residuals, one-ways, PDPs) to the run directory.</p>
 <div class="sourceCode" id="cb3"><pre class="downlit sourceCode r">
-<code class="sourceCode R"><span><span class="va">res</span>               <span class="co"># leaderboard, constraint compliance, report</span></span>
+<code class="sourceCode R"><span><span class="va">res</span>               <span class="co"># leaderboard, constraint compliance, report, cost</span></span>
 <span><span class="va">res</span><span class="op">$</span><span class="va">models</span>        <span class="co"># fitted models: predict(res$models$glm1, newdata)</span></span>
 <span><span class="va">res</span><span class="op">$</span><span class="va">code</span>          <span class="co"># every line of R the agent ran, in order</span></span>
 <span><span class="va">res</span><span class="op">$</span><span class="va">session</span><span class="op">$</span><span class="fu">tell</span><span class="op">(</span><span class="st">"why did the refined model win?"</span><span class="op">)</span>   <span class="co"># keep talking</span></span></code></pre></div>
-<p>Convergence is under your control: <code>n_models</code> is a maximum, and the stopping rules — <code>patience</code> attempts without improvement, gains under <code>min_improve</code> don’t count — govern both candidate building and refinement.</p>
+</div>
+<div class="section level2">
+<h2 id="how-a-build-works">How a build works<a class="anchor" aria-label="anchor" href="#how-a-build-works"></a>
+</h2>
+<p>Every run walks the same six stages, and you hold the pen at stage 2:</p>
+<ol style="list-style-type: decimal">
+<li>
+<strong>Explore</strong> — dimensions, types, missingness, the outcome’s distribution; automatic leakage screening.</li>
+<li>
+<strong>Plan, then stop for you</strong> — candidate families matched to the outcome’s distribution, a validation scheme, suggested monotone constraints. Approval is a conversation: whatever you type is folded into the plan.</li>
+<li>
+<strong>Build</strong> — up to <code>n_models</code> candidates, compared on held-out data.</li>
+<li>
+<strong>Refine</strong> — the winner’s features are iterated one change at a time until the stopping rules call convergence.</li>
+<li>
+<strong>Verify</strong> — machine-checked constraints run against every final model; violations trigger repair rounds.</li>
+<li>
+<strong>Document</strong> — report, leaderboard, reproducible script, validation plots, all in the run directory.</li>
+</ol>
+<p>Two kinds of dial control how long this takes. The <em>statistical</em> stopping rules (H2O-style names) are applied by the agent: <code>stopping_rounds</code> consecutive attempts without improvement end an iteration, and gains below <code>stopping_tolerance</code> don’t count. The <em>mechanical</em> budgets are enforced in code and cannot be talked past: after <code>max_steps</code> code executions or <code>max_runtime</code> seconds, the execution tool refuses to run anything more and the agent must finalise with what it has.</p>
 </div>
 <div class="section level2">
 <h2 id="constraints">Constraints<a class="anchor" aria-label="anchor" href="#constraints"></a>
 </h2>
-<p>Pass hard requirements as a list. Strings are enforced through instructions; constraint objects carry a <code>check</code> function that Atlas runs against every final model, feeding failures back to the agent for repair:</p>
+<p>Pass hard requirements as a list. Strings are enforced through instructions; constraint objects carry a <code>check</code> function that atlas runs against every final model, feeding failures back to the agent for repair:</p>
 <div class="sourceCode" id="cb4"><pre class="downlit sourceCode r">
 <code class="sourceCode R"><span><span class="va">res</span> <span class="op">&lt;-</span> <span class="fu"><a href="reference/atlas.html">atlas</a></span><span class="op">(</span><span class="va">mtcars</span>, <span class="st">"mpg"</span>, constraints <span class="op">=</span> <span class="fu"><a href="https://rdrr.io/r/base/list.html" class="external-link">list</a></span><span class="op">(</span></span>
 <span>  uses_wt <span class="op">=</span> <span class="fu"><a href="reference/con_uses.html">con_uses</a></span><span class="op">(</span><span class="st">"wt"</span><span class="op">)</span>,                    <span class="co"># must actually use wt</span></span>
@@ -135,10 +124,24 @@
 <p>Columns that won’t exist at prediction time don’t belong in the data at all — <code>exclude</code> removes them before the agent ever sees it, and <code><a href="reference/atlas_leakage_screen.html">atlas_leakage_screen()</a></code> automatically flags predictors that alone explain almost all of the outcome. See <code><a href="articles/constraints.html">vignette("constraints")</a></code>.</p>
 </div>
 <div class="section level2">
+<h2 id="unattended-runs">Unattended runs<a class="anchor" aria-label="anchor" href="#unattended-runs"></a>
+</h2>
+<p>For hands-off experimentation — overnight, in a script, on a schedule — set <code>autonomous = TRUE</code>: the agent states its plan and proceeds instead of waiting for approval, iterating keep/discard experiments under the stopping rules. Pair it with <code>test_prop</code> to hold out rows the agent <strong>never sees</strong>; when the run ends, atlas itself evaluates every surviving model on that test set, so the final ranking can’t be gamed by overfitting the agent’s own validation scheme:</p>
+<div class="sourceCode" id="cb5"><pre class="downlit sourceCode r">
+<code class="sourceCode R"><span><span class="va">res</span> <span class="op">&lt;-</span> <span class="fu"><a href="reference/atlas.html">atlas</a></span><span class="op">(</span><span class="va">claims</span>, <span class="st">"severity"</span>,</span>
+<span>             autonomous <span class="op">=</span> <span class="cn">TRUE</span>,</span>
+<span>             n_models <span class="op">=</span> <span class="fl">10</span>, stopping_rounds <span class="op">=</span> <span class="fl">8</span>,  <span class="co"># room to explore</span></span>
+<span>             max_steps <span class="op">=</span> <span class="fl">300</span>,                     <span class="co"># hard cap, enforced in code</span></span>
+<span>             test_prop <span class="op">=</span> <span class="fl">0.2</span><span class="op">)</span>                     <span class="co"># the ungameable judge</span></span>
+<span></span>
+<span><span class="va">res</span><span class="op">$</span><span class="va">test_leaderboard</span>   <span class="co"># held-out performance, best first</span></span></code></pre></div>
+<p>Long runs stay affordable: past a token budget (<code>compact_at</code>) the conversation is compacted — transcript archived to disk, context cleared, agent re-oriented from session state at no extra LLM cost — and every results object reports the session’s total dollar <code>cost</code>. See <code><a href="articles/autonomous.html">vignette("autonomous")</a></code>.</p>
+</div>
+<div class="section level2">
 <h2 id="sessions">Sessions<a class="anchor" aria-label="anchor" href="#sessions"></a>
 </h2>
-<p><code><a href="reference/atlas.html">atlas()</a></code> is a one-call wrapper around an <code>AtlasSession</code>, which lives in the run directory as much as in memory: data, code log, conversation, and artifacts (report, leaderboard, models, validation plots) are all on disk, so sessions survive anything:</p>
-<div class="sourceCode" id="cb5"><pre class="downlit sourceCode r">
+<p><code><a href="reference/atlas.html">atlas()</a></code> is a one-call wrapper around an <code>atlas_session</code>, which lives in the run directory as much as in memory: data, code log, conversation, and artifacts (report, leaderboard, models, validation plots) are all on disk, so sessions survive anything:</p>
+<div class="sourceCode" id="cb6"><pre class="downlit sourceCode r">
 <code class="sourceCode R"><span><span class="va">s</span> <span class="op">&lt;-</span> <span class="fu"><a href="reference/atlas_resume.html">atlas_resume</a></span><span class="op">(</span><span class="st">".atlas/20260703-141500"</span><span class="op">)</span></span>
 <span><span class="va">s</span><span class="op">$</span><span class="fu">tell</span><span class="op">(</span><span class="st">"swap the elastic net for a GAM and re-compare"</span><span class="op">)</span></span></code></pre></div>
 <p>Runs land in <code>.atlas/&lt;timestamp&gt;</code> by default; set <code>options(atlas.dir = "~/atlas-runs")</code> to choose. See <code><a href="articles/sessions.html">vignette("sessions")</a></code>.</p>
@@ -150,9 +153,11 @@
 <li>
 <strong>Columns are the scaling limit, not rows.</strong> Fitting is local, so a million rows just take the time they take — but the agent reasons about variables by name, and past a few dozen columns that reasoning degrades. Pre-select features for wide data.</li>
 <li>
-<strong>Cost scales with agent steps</strong>, not data size: more candidates, more repair rounds, more follow-ups mean more LLM calls.</li>
+<strong>Cost scales with agent steps</strong>, not data size: more candidates, more repair rounds, more follow-ups mean more LLM calls. <code>print(res)</code> shows what a session cost.</li>
 <li>
-<strong>An agent is not a statistician.</strong> Atlas verifies what you tell it to verify; judgment about what the model is <em>for</em> stays with you. Read the report, check <code>res$code</code>, and look at the validation output.</li>
+<strong>The statistical stopping rules are agent-applied.</strong> For guarantees, use the mechanical budgets (<code>max_steps</code>, <code>max_runtime</code>) — those are enforced by atlas, not the model.</li>
+<li>
+<strong>An agent is not a statistician.</strong> atlas verifies what you tell it to verify; judgment about what the model is <em>for</em> stays with you. Read the report, check <code>res$code</code>, and look at the validation output.</li>
 </ul>
 </div>
 <div class="section level2">
@@ -160,20 +165,20 @@
 </h2>
 <ul>
 <li>
-<code><a href="articles/atlas.html">vignette("atlas")</a></code> — a full walkthrough: setup, the build lifecycle, what you get back</li>
+<code><a href="articles/atlas.html">vignette("atlas")</a></code> — a full walkthrough: setup, the build lifecycle, what you get back, what it costs</li>
 <li>
 <code><a href="articles/constraints.html">vignette("constraints")</a></code> — encoding domain knowledge that can’t be ignored</li>
 <li>
-<code><a href="articles/sessions.html">vignette("sessions")</a></code> — persistence, resuming, and steering mid-build</li>
+<code><a href="articles/sessions.html">vignette("sessions")</a></code> — persistence, resuming, steering mid-build, and token stewardship</li>
+<li>
+<code><a href="articles/autonomous.html">vignette("autonomous")</a></code> — unattended runs with hard budgets and a protected test set</li>
 </ul>
 </div>
 </div>
-  </div>
-
-  <div class="col-md-3 hidden-xs hidden-sm" id="pkgdown-sidebar">
-    <div class="links">
+  </main><aside class="col-md-3"><div class="links">
 <h2 data-toc-skip>Links</h2>
 <ul class="list-unstyled">
+<li><a href="https://cloud.r-project.org/package=atlas" class="external-link">View on CRAN</a></li>
 <li><a href="https://github.com/mattyoreilly/Atlas/" class="external-link">Browse source code</a></li>
 <li><a href="https://github.com/mattyoreilly/Atlas/issues" class="external-link">Report a bug</a></li>
 </ul>
@@ -192,7 +197,7 @@
 <div class="citation">
 <h2 data-toc-skip>Citation</h2>
 <ul class="list-unstyled">
-<li><a href="authors.html#citation">Citing Atlas</a></li>
+<li><a href="authors.html#citation">Citing atlas</a></li>
 </ul>
 </div>
 
@@ -205,23 +210,20 @@
 
 
 
-  </div>
+  </aside>
 </div>
 
 
-      <footer><div class="copyright">
-  <p></p>
-<p>Developed by Matt O’Reilly.</p>
+    <footer><div class="pkgdown-footer-left">
+  <p>Developed by Matt O’Reilly.</p>
 </div>
 
-<div class="pkgdown">
-  <p></p>
-<p>Site built with <a href="https://pkgdown.r-lib.org/" class="external-link">pkgdown</a> 2.2.0.</p>
+<div class="pkgdown-footer-right">
+  <p>Site built with <a href="https://pkgdown.r-lib.org/" class="external-link">pkgdown</a> 2.2.0.</p>
 </div>
 
-      </footer>
+    </footer>
 </div>
-
 
 
 

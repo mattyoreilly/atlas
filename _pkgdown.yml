@@ -1,0 +1,57 @@
+url: https://mattyoreilly.github.io/Atlas/
+
+template:
+  bootstrap: 5
+
+home:
+  title: atlas — automated model building with LLM agents
+  description: >
+    Give an LLM agent a data frame and a target. It explores the data,
+    proposes a plan for your approval, then writes and runs R code to fit,
+    compare, and refine candidate models — with enforced constraints,
+    persistent sessions, and a complete code trail.
+
+navbar:
+  structure:
+    left: [intro, reference, articles, news]
+    right: [search, github]
+  components:
+    articles:
+      text: Articles
+      menu:
+      - text: Domain knowledge and constraints
+        href: articles/constraints.html
+      - text: Persistent sessions
+        href: articles/sessions.html
+      - text: Unattended runs
+        href: articles/autonomous.html
+
+reference:
+- title: Build models
+  desc: >
+    The main entry point, the session object behind it, and how to pick a
+    run back up.
+  contents:
+  - atlas
+  - atlas_session
+  - atlas_resume
+
+- title: Domain knowledge
+  desc: >
+    Hard requirements the models must satisfy — verified by atlas itself,
+    not trusted to the agent.
+  contents:
+  - constraint
+  - con_uses
+  - con_monotone
+  - extract_constraints
+
+- title: Feature safety
+  desc: Catching target leakage before it reaches a model.
+  contents:
+  - atlas_leakage_screen
+
+- title: Point-and-click
+  desc: The browser front-end for non-programmers.
+  contents:
+  - atlas_app

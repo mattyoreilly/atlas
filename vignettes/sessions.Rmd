@@ -94,6 +94,33 @@ argument, a `function()` polled after every tool call. Return a message to
 have it delivered with the agent's next tool result, marked as the
 highest-priority instruction; return `NULL` when there is nothing to say.
 
+## Staying inside the token budget
+
+The conversation is the only part of a session that grows — and LLM APIs
+re-read the whole context on every request, so an unmanaged conversation
+costs more with every step and eventually overflows the model's window.
+atlas manages it automatically, exploiting the same design idea as resume:
+the conversation is not the real memory.
+
+Past `compact_at` input tokens (default 100,000, cached tokens included),
+the next message triggers compaction: the transcript is archived to the run
+directory (`turns-archive-01.rds`, `-02`, …— nothing is deleted), the
+window is cleared, and the message is prefixed with a re-orientation
+briefing built from ground truth — the models in `atlas_models`, the
+current leaderboard, the number of code chunks run. Because the briefing is
+assembled deterministically from session state, it costs no extra LLM call
+and cannot hallucinate, unlike a model-written summary.
+
+You can also compact by hand before a long follow-up:
+
+```{r}
+res$session$compact()
+res$session$tell("now write an extended technical appendix for the report")
+```
+
+Cost stays visible: `res$cost` (and the last line of `print(res)`) is the
+session's cumulative dollar cost, straight from ellmer's token accounting.
+
 ## Questions from the agent
 
 The agent asks for plan approval — and anything else it genuinely needs —

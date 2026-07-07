@@ -138,7 +138,30 @@ res$session$tell("build one more candidate that uses at most 3 predictors")
 ```
 
 Sessions also survive R itself — see `vignette("sessions")` for resuming,
-crash recovery, and interrupting a build in progress.
+crash recovery, and interrupting a build in progress. For fully unattended
+runs — no approval gate, hard budgets, and a protected test set — see
+`vignette("autonomous")`.
+
+## What does a run cost?
+
+Only the conversation costs money: column metadata and printed summaries go
+up, narration and small code chunks come down, and everything heavy — the
+data, the fitting, the models — stays on your machine. A typical build is
+a few dozen LLM calls; more candidates, repair rounds, and follow-ups mean
+more calls, but more *rows* don't.
+
+Two mechanisms keep long sessions in check. Printed tool output is capped
+(~8,000 characters per chunk, tables truncated), so a stray
+`print(big_df)` can't flood the context. And past a token budget
+(`compact_at`, default 100,000) the conversation is compacted: transcript
+archived to the run directory, window cleared, agent re-oriented from
+session state at no extra cost. Every results object reports what the
+session actually cost:
+
+```{r}
+res$cost        # cumulative dollars, from ellmer's token accounting
+print(res)      # ...shown on the last line, too
+```
 
 ## How big can the data be?
 

@@ -1,0 +1,138 @@
+# Persistent sessions
+
+A model build is a long-running, interruptible collaboration, so Atlas
+treats session state as something that lives on disk first and in memory
+second. The design has one load-bearing idea: **the code log is the
+source of truth**. Arbitrary R environments can’t be reliably
+serialised, but a recorded script re-run against the same data
+reconstructs one exactly. Atlas therefore checkpoints every code chunk
+the moment it executes, and “resuming” means replaying that script —
+models included — then restoring the conversation.
+
+## The session object
+
+[`atlas()`](https://mattyoreilly.github.io/Atlas/reference/atlas.md) is
+a one-call wrapper around an `atlas_session` (R6), which holds the
+ellmer conversation, the R environment the agent works in, and the run
+directory:
+
+``` r
+
+library(atlas)
+
+s <- atlas_session$new(mtcars, outcome = "mpg", n_models = 3,
+                      goal = "prioritise interpretability")
+res <- s$build()                 # the full lifecycle, approval included
+s$tell("swap model 2 for a GAM") # follow-up, same context
+s$check()                        # re-verify constraints right now
+s$results()                      # assemble a fresh results object
+```
+
+Every results object carries its live session as `res$session`, so a
+follow-up is never more than one call away.
+
+## What’s on disk
+
+Each session owns a run directory — by default a timestamped folder
+under `getOption("atlas.dir", ".atlas")`; set that option once, or pass
+`dir` per run.
+
+| file              | contents                                         |
+|-------------------|--------------------------------------------------|
+| `data.rds`        | the training data, so a resume works cold        |
+| `meta.rds`        | outcome, stopping rules, goal, constraints       |
+| `code.R`          | every chunk the agent ran — a readable script    |
+| `code.rds`        | the same chunks, exactly as recorded, for replay |
+| `turns.rds`       | the full conversation                            |
+| `report.md`       | the agent’s report                               |
+| `leaderboard.csv` | validation metrics per model                     |
+| `models.rds`      | the fitted models                                |
+
+Checkpoints are written after every tool call and every reply, so at
+worst a crash loses the single in-flight step. `code.R` doubles as the
+reproducibility artifact: plain R you can read, audit, or run without
+Atlas — or an API key.
+
+## Resuming
+
+``` r
+
+s <- atlas_resume(".atlas/20260703-141500")
+s$tell("continue where you left off")
+```
+
+[`atlas_resume()`](https://mattyoreilly.github.io/Atlas/reference/atlas_resume.md)
+reloads the data, replays the recorded code log top to bottom (agent
+code is seeded, so the replay is exact), and restores the conversation
+turns. The agent comes back knowing everything it did, with every fitted
+object rebuilt. The one cost to budget for: replay refits the models, so
+resuming a session whose models take minutes to fit takes those minutes
+again.
+
+## Interrupting a build
+
+You don’t have to wait for the agent to ask you something. Interrupt
+with `Ctrl+C` / `Esc`, then resume with the new information — the work
+up to the interruption was already checkpointed:
+
+``` r
+
+res <- atlas(big_data, "claim_cost")   # Ctrl+C mid-build...
+
+s <- atlas_resume(".atlas/20260703-141500")
+s$tell("stop trying tree models; the deployment target only supports GLMs")
+```
+
+Programmatic front-ends get a cleaner hook: the `interject` constructor
+argument, a `function()` polled after every tool call. Return a message
+to have it delivered with the agent’s next tool result, marked as the
+highest-priority instruction; return `NULL` when there is nothing to
+say.
+
+## Staying inside the token budget
+
+The conversation is the only part of a session that grows — and LLM APIs
+re-read the whole context on every request, so an unmanaged conversation
+costs more with every step and eventually overflows the model’s window.
+atlas manages it automatically, exploiting the same design idea as
+resume: the conversation is not the real memory.
+
+Past `compact_at` input tokens (default 100,000, cached tokens
+included), the next message triggers compaction: the transcript is
+archived to the run directory (`turns-archive-01.rds`, `-02`, …— nothing
+is deleted), the window is cleared, and the message is prefixed with a
+re-orientation briefing built from ground truth — the models in
+`atlas_models`, the current leaderboard, the number of code chunks run.
+Because the briefing is assembled deterministically from session state,
+it costs no extra LLM call and cannot hallucinate, unlike a
+model-written summary.
+
+You can also compact by hand before a long follow-up:
+
+``` r
+
+res$session$compact()
+res$session$tell("now write an extended technical appendix for the report")
+```
+
+Cost stays visible: `res$cost` (and the last line of `print(res)`) is
+the session’s cumulative dollar cost, straight from ellmer’s token
+accounting.
+
+## Questions from the agent
+
+The agent asks for plan approval — and anything else it genuinely needs
+— through its `ask_user` tool. In an interactive session the question is
+printed and the console blocks on your answer; treat it as a
+conversation, not a yes/no gate, since whatever you type is folded into
+the plan. In non-interactive contexts (`Rscript`, CI) the tool tells the
+agent to use its best judgment and record the decision in the report, so
+scripted runs never hang. Front-ends can supply their own handler via
+`on_ask`.
+
+## Verbosity
+
+`verbose = TRUE` (default) streams the narration, each code chunk, its
+output, and constraint-check tables to the console. `verbose = FALSE`
+runs silently — everything still checkpoints, so `report.md` and
+`code.R` tell the story afterwards.

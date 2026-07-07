@@ -1,0 +1,185 @@
+# Getting started with Atlas
+
+Atlas automates the workmanlike part of modeling — explore, propose,
+fit, compare, refine, document — while keeping you in charge of every
+judgment call. An LLM agent does the work by writing and running R code
+in your session, narrating as it goes and pausing for your approval at
+the moments that matter.
+
+This vignette walks through one build end to end. Code chunks are not
+evaluated here because they need an API key.
+
+Two facts worth internalising before the first run:
+
+- **Your data never leaves your machine.** The agent receives a compact
+  profile — dimensions, column names and types — plus whatever output
+  its own code prints. Model fitting is ordinary local R.
+- **Everything is recorded.** Every code chunk the agent executes and
+  every conversational turn is checkpointed to a run directory as it
+  happens. The result of a build is not just models; it is a
+  reproducible script.
+
+## Setup
+
+Atlas talks to the LLM through [ellmer](https://ellmer.tidyverse.org)
+and defaults to Anthropic’s API, which reads a key from the
+`ANTHROPIC_API_KEY` environment variable. The tidy, persistent way to
+set it:
+
+``` r
+
+usethis::edit_r_environ()
+```
+
+Add one line (no quotes), save, restart R:
+
+    ANTHROPIC_API_KEY=sk-ant-...
+
+Every tool-capable ellmer provider is a drop-in replacement — pass one
+via `chat`:
+
+``` r
+
+res <- atlas(mtcars, "mpg", chat = ellmer::chat_openai(model = "gpt-5"))
+```
+
+## One build, start to finish
+
+``` r
+
+library(atlas)
+
+res <- atlas(mtcars, outcome = "mpg", n_models = 3,
+             goal = "prioritise interpretability")
+```
+
+Here is the lifecycle that call runs, and where you come in:
+
+1.  **Explore.** The agent profiles the data: dimensions, types,
+    missingness, and the outcome’s distribution. Predictors that alone
+    explain nearly all of the outcome are flagged as suspected target
+    leakage (see
+    [`atlas_leakage_screen()`](https://mattyoreilly.github.io/Atlas/reference/atlas_leakage_screen.md))
+    and must be confirmed with you before the agent may use them.
+
+2.  **Plan — and stop for you.** The agent proposes candidate model
+    families *chosen to match the outcome’s distribution* (binary
+    outcome → binomial; counts → Poisson-family; skewed positive →
+    Gamma/Tweedie or a log transform), a validation scheme with a fixed
+    seed, and any monotone effects it believes the domain implies. It
+    then asks for your approval in the console. This is a conversation,
+    not a checkbox: answer `yes`, or redirect — “drop the tree model,
+    and don’t use qsec” — and the plan is revised before anything is
+    fitted.
+
+3.  **Build.** Up to `n_models` candidates are fitted and compared on
+    held-out data, one narrated line per candidate.
+
+4.  **Refine.** The winner’s feature selection and engineering are
+    iterated — one change per attempt, same validation scheme — until
+    the stopping rules call convergence. The refined model joins the
+    results as `<winner>_refined`, next to the original.
+
+5.  **Verify.** Machine-checked constraints (if you passed any) are
+    tested against every final model; violations go back to the agent
+    for repair. See
+    [`vignette("constraints")`](https://mattyoreilly.github.io/Atlas/articles/constraints.md).
+
+6.  **Document.** With the `modelblueprint` package installed, the
+    winning model gets a full validation workup — gain chart,
+    calibration, grouped residuals, one-way plots, PDPs — written to the
+    run directory as interactive HTML, alongside a portable model
+    bundle.
+
+## Stopping rules
+
+`n_models` is a maximum, not a quota. Two numeric parameters decide when
+the agent should stop iterating, and they govern candidate building and
+refinement alike:
+
+``` r
+
+res <- atlas(mtcars, "mpg",
+  n_models           = 5,     # at most five candidates
+  stopping_rounds    = 3,     # stop after 3 attempts without improvement
+  stopping_tolerance = 0.05)  # gains under 5% (relative) don't count
+```
+
+The report always states *why* iteration stopped — limit reached or
+converged. These rules are applied by the agent itself; for hard
+guarantees on unattended runs there are also mechanically enforced
+budgets, `max_steps` (code executions) and `max_runtime` (seconds) —
+once exhausted, the execution tool refuses to run further code and the
+agent must finalise from what it has.
+
+## What you get back
+
+``` r
+
+res                    # print: leaderboard, constraint status, report
+res$models             # named list of fitted models
+predict(res$models[[1]], head(mtcars))
+res$leaderboard        # validation metric per model, best first
+res$report             # markdown: how each model was built, and why
+res$constraints        # compliance table (if constraints were set)
+cat(res$code, sep = "\n\n")   # the full script the agent ran
+res$dir                # the run directory holding all of the above
+```
+
+One element deserves special mention: `res$session` is the live session
+object, with the full conversation still in context. Anything you would
+ask a colleague who just built these models, you can ask it:
+
+``` r
+
+res$session$tell("why did the refined model beat the original?")
+res$session$tell("build one more candidate that uses at most 3 predictors")
+```
+
+Sessions also survive R itself — see
+[`vignette("sessions")`](https://mattyoreilly.github.io/Atlas/articles/sessions.md)
+for resuming, crash recovery, and interrupting a build in progress. For
+fully unattended runs — no approval gate, hard budgets, and a protected
+test set — see
+[`vignette("autonomous")`](https://mattyoreilly.github.io/Atlas/articles/autonomous.md).
+
+## What does a run cost?
+
+Only the conversation costs money: column metadata and printed summaries
+go up, narration and small code chunks come down, and everything heavy —
+the data, the fitting, the models — stays on your machine. A typical
+build is a few dozen LLM calls; more candidates, repair rounds, and
+follow-ups mean more calls, but more *rows* don’t.
+
+Two mechanisms keep long sessions in check. Printed tool output is
+capped (~8,000 characters per chunk, tables truncated), so a stray
+`print(big_df)` can’t flood the context. And past a token budget
+(`compact_at`, default 100,000) the conversation is compacted:
+transcript archived to the run directory, window cleared, agent
+re-oriented from session state at no extra cost. Every results object
+reports what the session actually cost:
+
+``` r
+
+res$cost        # cumulative dollars, from ellmer's token accounting
+print(res)      # ...shown on the last line, too
+```
+
+## How big can the data be?
+
+Rows are cheap; columns are the limit that matters.
+
+- **Rows: bounded by your machine, not the LLM.** The data is never
+  uploaded, and printed tool output is capped (~8,000 characters per
+  chunk), so a million rows cost you fitting time, not tokens.
+- **Columns: double digits are ideal, low hundreds the practical
+  ceiling.** The agent reasons about variables by name; its data profile
+  lists up to 50 columns. For wide data — one-hot blocks, text features,
+  omics — pre-select first, or tell it how in `goal` (“variance filter,
+  then work with the top 30”).
+- **Cost scales with agent steps.** More candidates, more repair rounds,
+  and more follow-ups mean more LLM calls; more rows don’t. A typical
+  build is a few dozen calls.
+- **Disk:** the run directory keeps a copy of the data so sessions
+  resume cold. Point `dir` (or `options(atlas.dir = )`) somewhere with
+  room for large datasets.
