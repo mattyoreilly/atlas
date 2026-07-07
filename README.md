@@ -1,5 +1,5 @@
 
-# atlas
+# atlas <img src="man/figures/logo.svg" align="right" height="139" alt="atlas hex logo: a figure kneeling on one knee, holding up a glowing neural-network sphere"/>
 
 Atlas builds models for you, and shows its work. Give it a data frame
 and a target; an LLM agent (via [ellmer](https://ellmer.tidyverse.org))
