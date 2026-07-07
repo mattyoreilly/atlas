@@ -54,7 +54,11 @@ cat(res$code, sep = "\n\n") # the full script the agent wrote
 res$session$add_budget(steps = 25)
 res$session$tell("remove the worst predictor and re-evaluate")
 
-res$session$tell("Remove the worst predictor")
+
+res <- res$session$results()
+res$models # now Logistic_Regression = v2, no LOAN_TERM
+res$leaderboard # the v2 row
+res$tally # full attempt history, including the DISCARD
 
 # 5. Autonomous variant ----------------------------------------------------
 # No approval gate; generous exploration; hard budgets. Run it, walk away.

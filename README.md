@@ -31,7 +31,7 @@ atlas is not yet on CRAN. Install the development version from
 
 ``` r
 # install.packages("pak")
-pak::pkg_install("mattyoreilly/Atlas")
+pak::pkg_install("mattyoreilly/atlas")
 ```
 
 You also need an API key for an LLM provider. atlas defaults to
