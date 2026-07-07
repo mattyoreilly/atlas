@@ -32,8 +32,8 @@ fixed, and predictions must move in the stated direction every time.
 \details{
 Monotonicity is non-strict, so a model that does not use \code{var} at all
 passes trivially (a flat response is monotone). This makes the constraint
-conditional — "if the model responds to \code{var}, the effect must be
-monotone" — without forcing the variable in. Pair with \code{\link[=con_uses]{con_uses()}} when
+conditional - "if the model responds to \code{var}, the effect must be
+monotone" - without forcing the variable in. Pair with \code{\link[=con_uses]{con_uses()}} when
 the variable must also be used.
 }
 \examples{

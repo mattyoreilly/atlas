@@ -8,7 +8,7 @@ machine-checked types wherever possible: "wt must be used" becomes
 and anything else becomes a prompt-enforced
 [`constraint()`](https://mattyoreilly.github.io/Atlas/reference/constraint.md).
 Returns the list for you to inspect (print it!) before passing to
-[`atlas()`](https://mattyoreilly.github.io/Atlas/reference/atlas.md) —
+[`atlas()`](https://mattyoreilly.github.io/Atlas/reference/atlas.md) -
 the parse is a judgment call, so review it.
 
 ## Usage

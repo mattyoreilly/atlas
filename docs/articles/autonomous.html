@@ -70,8 +70,8 @@
     
 <p>The interactive workflow assumes you’re at the console to approve the
 plan and answer questions. This vignette covers the other mode: give the
-agent a real modeling problem and let it experiment on its own —
-overnight, inside a script, on a schedule — trying changes, keeping what
+agent a real modeling problem and let it experiment on its own -
+overnight, inside a script, on a schedule - trying changes, keeping what
 improves and discarding what doesn’t, with the survivors judged at the
 end on data the agent never touched.</p>
 <p>The complete recipe:</p>
@@ -97,7 +97,7 @@ explains them.</p>
 contract. The plan-approval gate becomes “state the plan and proceed”;
 monotone constraints the agent considers clearly right on domain grounds
 are applied directly (and noted in the narration) instead of proposed
-for approval; and the agent is told flatly that no user exists — it must
+for approval; and the agent is told flatly that no user exists - it must
 never call its <code>ask_user</code> tool, and must record every
 judgment call in its narration and report instead.</p>
 <p>Everything else about the run is unchanged: same lifecycle, same
@@ -111,7 +111,7 @@ leaves its entire story in the run directory (<code>report.md</code>,
 </h2>
 <p>An unattended run needs an answer to “when do you stop?”, and atlas
 deliberately gives two, with different trust models.</p>
-<p><strong>Statistical stopping — applied by the agent.</strong>
+<p><strong>Statistical stopping - applied by the agent.</strong>
 <code>stopping_rounds</code> and <code>stopping_tolerance</code> (H2O
 users will recognise the names) define convergence: an attempt counts as
 an improvement only if it beats the best validation metric so far by at
@@ -121,13 +121,13 @@ These govern both candidate building and the winner-refinement loop, and
 because one improvement resets the count, a long run can work through
 flat stretches. The agent applies these rules itself and must state in
 the report which one fired.</p>
-<p><strong>Mechanical stopping — enforced by atlas.</strong>
+<p><strong>Mechanical stopping - enforced by atlas.</strong>
 <code>max_steps</code> (code executions) and <code>max_runtime</code>
 (wall-clock seconds) are budgets the agent cannot talk its way past.
 They are disclosed in its instructions up front; warnings start
 appearing in tool results once 80% of a budget is spent (“240 of 300
-code executions used — prioritise finalising”); and past the limit the
-execution tool refuses outright — the code does not run, and the agent
+code executions used - prioritise finalising”); and past the limit the
+execution tool refuses outright - the code does not run, and the agent
 is told to write its report from what already exists. The refinement and
 validation phases are skipped rather than started if the budget is
 already gone.</p>
@@ -140,17 +140,17 @@ weekend”.</p>
 </h2>
 <p><code>test_prop</code> is the piece that makes an autonomous run
 trustworthy. Before the agent sees anything, atlas holds out that
-proportion of rows (deterministically — the same data gives the same
+proportion of rows (deterministically - the same data gives the same
 split). The agent is told the test set exists and that final models will
 be judged on it, but the rows never enter its environment: it cannot
 peek, tune against them, or leak them into feature engineering.</p>
-<p>When the run ends, <strong>atlas itself</strong> — plain R, no LLM —
+<p>When the run ends, <strong>atlas itself</strong> - plain R, no LLM -
 evaluates every model in the results on the held-out rows: RMSE for
 continuous outcomes, accuracy otherwise, with models that fail to
 predict scored <code>NA</code> rather than sinking the run. The ranking
 lands in <code>res$test_leaderboard</code>, in
 <code>test_leaderboard.csv</code>, and in <code>print(res)</code> right
-beside the agent’s own validation leaderboard — so you can see at a
+beside the agent’s own validation leaderboard - so you can see at a
 glance whether the agent’s sense of “better” survived contact with
 unseen data.</p>
 <div class="sourceCode" id="cb2"><pre class="downlit sourceCode r">
@@ -161,7 +161,7 @@ unseen data.</p>
 <h2 id="token-stewardship">Token stewardship<a class="anchor" aria-label="anchor" href="#token-stewardship"></a>
 </h2>
 <p>A hundred-experiment run would ordinarily re-read its own growing
-history on every step — quadratic token cost, and eventually a
+history on every step - quadratic token cost, and eventually a
 context-window overflow. atlas avoids both because the conversation was
 never the real memory: the R environment holds the models and the run
 directory holds the code log.</p>
@@ -169,7 +169,7 @@ directory holds the code log.</p>
 conversation is compacted before the next message: the transcript is
 archived to the run directory (<code>turns-archive-01.rds</code>, …),
 the window is cleared, and the agent is re-oriented with a briefing
-built deterministically from session state — current models, the
+built deterministically from session state - current models, the
 leaderboard, how many chunks have run. No summarising LLM call, nothing
 invented. Long runs therefore pay roughly constant tokens per
 experiment.</p>
@@ -181,7 +181,7 @@ session’s cumulative dollar <code>cost</code>, and
 <h2 id="checking-in-on-a-run">Checking in on a run<a class="anchor" aria-label="anchor" href="#checking-in-on-a-run"></a>
 </h2>
 <p>Everything is checkpointed as it happens, so an unattended run can be
-inspected — or picked up — at any time from another R session:</p>
+inspected - or picked up - at any time from another R session:</p>
 <div class="sourceCode" id="cb3"><pre class="downlit sourceCode r">
 <code class="sourceCode R"><span><span class="co"># from anywhere, while the run is going or after it crashed:</span></span>
 <span><span class="fu"><a href="https://rdrr.io/r/base/readLines.html" class="external-link">readLines</a></span><span class="op">(</span><span class="fu"><a href="https://rdrr.io/r/base/file.path.html" class="external-link">file.path</a></span><span class="op">(</span><span class="va">dir</span>, <span class="st">"report.md"</span><span class="op">)</span><span class="op">)</span>     <span class="co"># the story so far</span></span>
@@ -191,7 +191,7 @@ inspected — or picked up — at any time from another R session:</p>
 <span><span class="va">s</span> <span class="op">&lt;-</span> <span class="fu"><a href="../reference/atlas_resume.html">atlas_resume</a></span><span class="op">(</span><span class="va">dir</span><span class="op">)</span></span>
 <span><span class="va">s</span><span class="op">$</span><span class="fu">tell</span><span class="op">(</span><span class="st">"stop exploring tree models; focus on the GLM family"</span><span class="op">)</span></span></code></pre></div>
 <p>Resuming replays the recorded code log against the saved data, so the
-session comes back with every fitted object intact — see
+session comes back with every fitted object intact - see
 <code><a href="../articles/sessions.html">vignette("sessions")</a></code> for the mechanics.</p>
 </div>
 <div class="section level2">
@@ -201,7 +201,7 @@ session comes back with every fitted object intact — see
 still verified by atlas and repaired on violation. Excluded columns
 still never reach the agent. The leakage screen still runs, and in
 autonomous mode a flagged predictor with no user to vouch for it should
-be treated with suspicion — the conservative move is to
+be treated with suspicion - the conservative move is to
 <code>exclude</code> anything doubtful before an unattended run rather
 than leaving the judgment to the agent.</p>
 </div>

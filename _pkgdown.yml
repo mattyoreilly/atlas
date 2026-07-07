@@ -4,11 +4,11 @@ template:
   bootstrap: 5
 
 home:
-  title: atlas — automated model building with LLM agents
+  title: atlas - automated model building with LLM agents
   description: >
     Give an LLM agent a data frame and a target. It explores the data,
     proposes a plan for your approval, then writes and runs R code to fit,
-    compare, and refine candidate models — with enforced constraints,
+    compare, and refine candidate models - with enforced constraints,
     persistent sessions, and a complete code trail.
 
 navbar:
@@ -38,7 +38,7 @@ reference:
 
 - title: Domain knowledge
   desc: >
-    Hard requirements the models must satisfy — verified by atlas itself,
+    Hard requirements the models must satisfy - verified by atlas itself,
     not trusted to the agent.
   contents:
   - constraint

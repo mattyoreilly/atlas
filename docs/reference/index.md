@@ -14,7 +14,7 @@ run back up.
 
 ## Domain knowledge
 
-Hard requirements the models must satisfy — verified by atlas itself,
+Hard requirements the models must satisfy - verified by atlas itself,
 not trusted to the agent.
 
 - [`constraint()`](https://mattyoreilly.github.io/Atlas/reference/constraint.md)

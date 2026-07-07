@@ -1,7 +1,7 @@
 # Getting started with Atlas
 
-Atlas automates the workmanlike part of modeling — explore, propose,
-fit, compare, refine, document — while keeping you in charge of every
+Atlas automates the workmanlike part of modeling - explore, propose,
+fit, compare, refine, document - while keeping you in charge of every
 judgment call. An LLM agent does the work by writing and running R code
 in your session, narrating as it goes and pausing for your approval at
 the moments that matter.
@@ -12,7 +12,7 @@ evaluated here because they need an API key.
 Two facts worth internalising before the first run:
 
 - **Your data never leaves your machine.** The agent receives a compact
-  profile — dimensions, column names and types — plus whatever output
+  profile - dimensions, column names and types - plus whatever output
   its own code prints. Model fitting is ordinary local R.
 - **Everything is recorded.** Every code chunk the agent executes and
   every conversational turn is checkpointed to a run directory as it
@@ -35,7 +35,7 @@ Add one line (no quotes), save, restart R:
 
     ANTHROPIC_API_KEY=sk-ant-...
 
-Every tool-capable ellmer provider is a drop-in replacement — pass one
+Every tool-capable ellmer provider is a drop-in replacement - pass one
 via `chat`:
 
 ``` r
@@ -62,23 +62,25 @@ Here is the lifecycle that call runs, and where you come in:
     [`atlas_leakage_screen()`](https://mattyoreilly.github.io/Atlas/reference/atlas_leakage_screen.md))
     and must be confirmed with you before the agent may use them.
 
-2.  **Plan — and stop for you.** The agent proposes candidate model
+2.  **Plan - and stop for you.** The agent proposes candidate model
     families *chosen to match the outcome’s distribution* (binary
     outcome → binomial; counts → Poisson-family; skewed positive →
     Gamma/Tweedie or a log transform), a validation scheme with a fixed
     seed, and any monotone effects it believes the domain implies. It
     then asks for your approval in the console. This is a conversation,
-    not a checkbox: answer `yes`, or redirect — “drop the tree model,
-    and don’t use qsec” — and the plan is revised before anything is
+    not a checkbox: answer `yes`, or redirect - “drop the tree model,
+    and don’t use qsec” - and the plan is revised before anything is
     fitted.
 
 3.  **Build.** Up to `n_models` candidates are fitted and compared on
     held-out data, one narrated line per candidate.
 
 4.  **Refine.** The winner’s feature selection and engineering are
-    iterated — one change per attempt, same validation scheme — until
-    the stopping rules call convergence. The refined model joins the
-    results as `<winner>_refined`, next to the original.
+    iterated
+
+    - one change per attempt, same validation scheme - until the
+      stopping rules call convergence. The refined model joins the
+      results as `<winner>_refined`, next to the original.
 
 5.  **Verify.** Machine-checked constraints (if you passed any) are
     tested against every final model; violations go back to the agent
@@ -86,8 +88,8 @@ Here is the lifecycle that call runs, and where you come in:
     [`vignette("constraints")`](https://mattyoreilly.github.io/Atlas/articles/constraints.md).
 
 6.  **Document.** With the `modelblueprint` package installed, the
-    winning model gets a full validation workup — gain chart,
-    calibration, grouped residuals, one-way plots, PDPs — written to the
+    winning model gets a full validation workup - gain chart,
+    calibration, grouped residuals, one-way plots, PDPs - written to the
     run directory as interactive HTML, alongside a portable model
     bundle.
 
@@ -105,10 +107,10 @@ res <- atlas(mtcars, "mpg",
   stopping_tolerance = 0.05)  # gains under 5% (relative) don't count
 ```
 
-The report always states *why* iteration stopped — limit reached or
+The report always states *why* iteration stopped - limit reached or
 converged. These rules are applied by the agent itself; for hard
 guarantees on unattended runs there are also mechanically enforced
-budgets, `max_steps` (code executions) and `max_runtime` (seconds) —
+budgets, `max_steps` (code executions) and `max_runtime` (seconds) -
 once exhausted, the execution tool refuses to run further code and the
 agent must finalise from what it has.
 
@@ -136,18 +138,18 @@ res$session$tell("why did the refined model beat the original?")
 res$session$tell("build one more candidate that uses at most 3 predictors")
 ```
 
-Sessions also survive R itself — see
+Sessions also survive R itself - see
 [`vignette("sessions")`](https://mattyoreilly.github.io/Atlas/articles/sessions.md)
 for resuming, crash recovery, and interrupting a build in progress. For
-fully unattended runs — no approval gate, hard budgets, and a protected
-test set — see
+fully unattended runs - no approval gate, hard budgets, and a protected
+test set - see
 [`vignette("autonomous")`](https://mattyoreilly.github.io/Atlas/articles/autonomous.md).
 
 ## What does a run cost?
 
 Only the conversation costs money: column metadata and printed summaries
-go up, narration and small code chunks come down, and everything heavy —
-the data, the fitting, the models — stays on your machine. A typical
+go up, narration and small code chunks come down, and everything heavy -
+the data, the fitting, the models - stays on your machine. A typical
 build is a few dozen LLM calls; more candidates, repair rounds, and
 follow-ups mean more calls, but more *rows* don’t.
 
@@ -174,8 +176,8 @@ Rows are cheap; columns are the limit that matters.
   chunk), so a million rows cost you fitting time, not tokens.
 - **Columns: double digits are ideal, low hundreds the practical
   ceiling.** The agent reasons about variables by name; its data profile
-  lists up to 50 columns. For wide data — one-hot blocks, text features,
-  omics — pre-select first, or tell it how in `goal` (“variance filter,
+  lists up to 50 columns. For wide data - one-hot blocks, text features,
+  omics - pre-select first, or tell it how in `goal` (“variance filter,
   then work with the top 30”).
 - **Cost scales with agent steps.** More candidates, more repair rounds,
   and more follow-ups mean more LLM calls; more rows don’t. A typical

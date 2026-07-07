@@ -20,7 +20,7 @@ An \code{atlas_constraint}.
 \description{
 Constraints carry domain knowledge into the build: the description is put
 in front of the agent as a hard requirement, and if \code{check} is supplied the
-constraint is \emph{verified} — every final model is tested after the build, and
+constraint is \emph{verified} - every final model is tested after the build, and
 violations are sent back to the agent to fix (see \code{max_fix_rounds} in
 \code{\link[=atlas]{atlas()}}). Plain strings passed to \code{constraints} are shorthand for
 \verb{constraint(<string>)}: enforced via instructions only.

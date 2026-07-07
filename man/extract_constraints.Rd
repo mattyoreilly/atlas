@@ -26,7 +26,7 @@ machine-checked types wherever possible: "wt must be used" becomes
 \code{\link[=con_uses]{con_uses()}}, "mpg should never increase with weight" becomes
 \code{\link[=con_monotone]{con_monotone()}}, and anything else becomes a prompt-enforced
 \code{\link[=constraint]{constraint()}}. Returns the list for you to inspect (print it!) before
-passing to \code{\link[=atlas]{atlas()}} — the parse is a judgment call, so review it.
+passing to \code{\link[=atlas]{atlas()}} - the parse is a judgment call, so review it.
 }
 \examples{
 \dontrun{

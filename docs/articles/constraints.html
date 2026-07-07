@@ -72,8 +72,8 @@
 guarantee. Atlas draws that line explicitly. Soft preferences
 (“prioritise interpretability”) go in <code>goal</code> and shape the
 agent’s choices. Hard requirements go in <code>constraints</code>, and
-any constraint that can be tested in code is <em>verified</em> — by
-Atlas, not the agent — against every final model.</p>
+any constraint that can be tested in code is <em>verified</em> - by
+Atlas, not the agent - against every final model.</p>
 <p>Enforcement happens at three points:</p>
 <ol style="list-style-type: decimal">
 <li>
@@ -88,7 +88,7 @@ declaring the build done.</li>
 <li>
 <strong>After the build:</strong> Atlas independently runs every
 machine check against every model in the results. Violations are
-formatted into a repair prompt and sent back — the agent must refit
+formatted into a repair prompt and sent back - the agent must refit
 until the checks pass or <code>max_fix_rounds</code> is exhausted, and
 the outcome is reported either way.</li>
 </ol>
@@ -117,7 +117,7 @@ the outcome is reported either way.</li>
 <span><span class="op">)</span><span class="op">)</span></span></code></pre></div>
 <p>Prefer a <code>check</code> whenever the rule is testable; reserve
 strings for rules only the agent can honour. A check may also
-<code><a href="https://rdrr.io/r/base/stop.html" class="external-link">stop()</a></code> — errors count as violations, with the error message
+<code><a href="https://rdrr.io/r/base/stop.html" class="external-link">stop()</a></code> - errors count as violations, with the error message
 as the detail.</p>
 </div>
 <div class="section level2">
@@ -137,7 +137,7 @@ variable is swept across its range with everything else held fixed, and
 every step must move in the stated direction (within
 <code>tol</code>).</p>
 <p>Monotonicity is non-strict, and that is a feature: a model that
-ignores the variable has a flat — hence monotone — response, and passes.
+ignores the variable has a flat - hence monotone - response, and passes.
 So <code><a href="../reference/con_monotone.html">con_monotone()</a></code> alone means “<em>if</em> the model
 responds to <code>hp</code>, the effect must be decreasing”. Pair it
 with <code><a href="../reference/con_uses.html">con_uses()</a></code> to also force the variable in:</p>
@@ -188,7 +188,7 @@ guarantee:</p>
 <h2 id="excluding-features-and-catching-leakage">Excluding features, and catching leakage<a class="anchor" aria-label="anchor" href="#excluding-features-and-catching-leakage"></a>
 </h2>
 <p>Constraints govern <em>how</em> variables are used; sometimes the
-right answer is that a variable must not exist at all — it won’t be
+right answer is that a variable must not exist at all - it won’t be
 available at prediction time in deployment, or it leaks the outcome.
 That is <code>exclude</code>, and it is deliberately blunt: excluded
 columns are dropped from the data <strong>before the agent ever sees
@@ -200,7 +200,7 @@ it</strong>, which no instruction can match for certainty.</p>
 <p>The surviving predictors are screened automatically with
 <code><a href="../reference/atlas_leakage_screen.html">atlas_leakage_screen()</a></code>: a fast univariate check that flags
 any column which alone explains almost all of the outcome (R² ≥ 0.95 by
-default) — the classic signature of a column derived from, or recorded
+default) - the classic signature of a column derived from, or recorded
 after, the target. Flagged columns are listed in the agent’s brief with
 an order to confirm each one with you before relying on it. The screen
 is also useful standalone, before any modeling:</p>
@@ -210,7 +210,7 @@ is also useful standalone, before any modeling:</p>
 <span><span class="co">#&gt;   settlement_amount 0.998    TRUE</span></span>
 <span><span class="co">#&gt;            exposure 0.310   FALSE</span></span></code></pre></div>
 <p>Being univariate, the screen catches copy-and-derived-column leakage,
-not leakage that only emerges in combination — that is what the agent’s
+not leakage that only emerges in combination - that is what the agent’s
 own vigilance instructions and your <code>exclude</code> list are
 for.</p>
 </div>
@@ -218,10 +218,10 @@ for.</p>
 <h2 id="constraints-the-agent-suggests">Constraints the agent suggests<a class="anchor" aria-label="anchor" href="#constraints-the-agent-suggests"></a>
 </h2>
 <p>Some monotone constraints are so obviously right that forgetting them
-is the only failure mode — price should not fall as floor area grows.
+is the only failure mode - price should not fall as floor area grows.
 During exploration, Atlas is instructed to think about which predictors
 should plausibly have monotone effects, and to include any such
-suggestions — variable, direction, one-line rationale — in the plan it
+suggestions - variable, direction, one-line rationale - in the plan it
 asks you to approve. Each suggestion you approve is added through the
 agent’s <code>add_monotone_constraint</code> tool and becomes a real,
 machine-checked constraint: verified, repaired on violation, and
@@ -262,10 +262,10 @@ check.</p>
 constraint, plus one row per prompt-only constraint:</p>
 <ul>
 <li>
-<code>passed = TRUE</code> / <code>FALSE</code> — the check ran;
+<code>passed = TRUE</code> / <code>FALSE</code> - the check ran;
 <code>detail</code> explains any failure.</li>
 <li>
-<code>passed = NA</code> — prompt-only: enforced through
+<code>passed = NA</code> - prompt-only: enforced through
 instructions, not verifiable.</li>
 </ul>
 <p><code>print(res)</code> surfaces failures loudly, and a session’s

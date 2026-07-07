@@ -5,15 +5,15 @@
 <meta charset="utf-8">
 <meta http-equiv="X-UA-Compatible" content="IE=edge">
 <meta name="viewport" content="width=device-width, initial-scale=1, shrink-to-fit=no">
-<title>atlas — automated model building with LLM agents • atlas</title>
+<title>atlas - automated model building with LLM agents • atlas</title>
 <script src="deps/jquery-3.6.0/jquery-3.6.0.min.js"></script><meta name="viewport" content="width=device-width, initial-scale=1, shrink-to-fit=no">
 <link href="deps/bootstrap-5.3.8/bootstrap.min.css" rel="stylesheet">
 <script src="deps/bootstrap-5.3.8/bootstrap.bundle.min.js"></script><link href="deps/font-awesome-6.5.2/css/all.min.css" rel="stylesheet">
 <link href="deps/font-awesome-6.5.2/css/v4-shims.min.css" rel="stylesheet">
-<script src="deps/headroom-0.11.0/headroom.min.js"></script><script src="deps/headroom-0.11.0/jQuery.headroom.min.js"></script><script src="deps/bootstrap-toc-1.0.1/bootstrap-toc.min.js"></script><script src="deps/clipboard.js-2.0.11/clipboard.min.js"></script><script src="deps/search-1.0.0/autocomplete.jquery.min.js"></script><script src="deps/search-1.0.0/fuse.min.js"></script><script src="deps/search-1.0.0/mark.min.js"></script><!-- pkgdown --><script src="pkgdown.js"></script><meta property="og:title" content="atlas — automated model building with LLM agents">
-<meta name="description" content="Give an LLM agent a data frame and a target. It explores the data, proposes a plan for your approval, then writes and runs R code to fit, compare, and refine candidate models — with enforced constraints, persistent sessions, and a complete code trail.
+<script src="deps/headroom-0.11.0/headroom.min.js"></script><script src="deps/headroom-0.11.0/jQuery.headroom.min.js"></script><script src="deps/bootstrap-toc-1.0.1/bootstrap-toc.min.js"></script><script src="deps/clipboard.js-2.0.11/clipboard.min.js"></script><script src="deps/search-1.0.0/autocomplete.jquery.min.js"></script><script src="deps/search-1.0.0/fuse.min.js"></script><script src="deps/search-1.0.0/mark.min.js"></script><!-- pkgdown --><script src="pkgdown.js"></script><meta property="og:title" content="atlas - automated model building with LLM agents">
+<meta name="description" content="Give an LLM agent a data frame and a target. It explores the data, proposes a plan for your approval, then writes and runs R code to fit, compare, and refine candidate models - with enforced constraints, persistent sessions, and a complete code trail.
 ">
-<meta property="og:description" content="Give an LLM agent a data frame and a target. It explores the data, proposes a plan for your approval, then writes and runs R code to fit, compare, and refine candidate models — with enforced constraints, persistent sessions, and a complete code trail.
+<meta property="og:description" content="Give an LLM agent a data frame and a target. It explores the data, proposes a plan for your approval, then writes and runs R code to fit, compare, and refine candidate models - with enforced constraints, persistent sessions, and a complete code trail.
 ">
 </head>
 <body>
@@ -60,11 +60,11 @@
   <main id="main" class="col-md-9"><div class="section level1">
 <div class="page-header"><h1 id="atlas">atlas<a class="anchor" aria-label="anchor" href="#atlas"></a>
 </h1></div>
-<p>Atlas builds models for you, and shows its work. Give it a data frame and a target; an LLM agent (via <a href="https://ellmer.tidyverse.org" class="external-link">ellmer</a>) explores the data, proposes a modeling plan for your approval, then writes and runs R code to fit, compare, and refine candidate models. You get back fitted models ready for <code><a href="https://rdrr.io/r/stats/predict.html" class="external-link">predict()</a></code>, a leaderboard, a written report — and, because the agent works by writing R, the complete script of everything it did.</p>
+<p>Atlas builds models for you, and shows its work. Give it a data frame and a target; an LLM agent (via <a href="https://ellmer.tidyverse.org" class="external-link">ellmer</a>) explores the data, proposes a modeling plan for your approval, then writes and runs R code to fit, compare, and refine candidate models. You get back fitted models ready for <code><a href="https://rdrr.io/r/stats/predict.html" class="external-link">predict()</a></code>, a leaderboard, a written report - and, because the agent works by writing R, the complete script of everything it did.</p>
 <p>Three ideas separate atlas from “ask a chatbot for model code”:</p>
 <ul>
 <li><p><strong>Domain knowledge is enforced, not suggested.</strong> Constraints like “<code>wt</code> must be used” or “predictions must never rise with horsepower” are machine-verified against every final model, and violations are sent back to the agent to fix.</p></li>
-<li><p><strong>Sessions are persistent.</strong> Every code chunk and conversation turn is checkpointed to disk as it happens. A crash, a restart, or a deliberate interruption loses nothing — resume and keep going.</p></li>
+<li><p><strong>Sessions are persistent.</strong> Every code chunk and conversation turn is checkpointed to disk as it happens. A crash, a restart, or a deliberate interruption loses nothing - resume and keep going.</p></li>
 <li><p><strong>Your data stays on your machine.</strong> The LLM sees column names, types, and printed summaries, never the rows. All fitting happens locally in your R session.</p></li>
 </ul>
 <div class="section level2">
@@ -74,7 +74,7 @@
 <div class="sourceCode" id="cb1"><pre class="downlit sourceCode r">
 <code class="sourceCode R"><span><span class="co"># install.packages("pak")</span></span>
 <span><span class="fu">pak</span><span class="fu">::</span><span class="fu"><a href="https://pak.r-lib.org/reference/pkg_install.html" class="external-link">pkg_install</a></span><span class="op">(</span><span class="st">"mattyoreilly/Atlas"</span><span class="op">)</span></span></code></pre></div>
-<p>You also need an API key for an LLM provider. atlas defaults to Anthropic: run <code><a href="https://usethis.r-lib.org/reference/edit.html" class="external-link">usethis::edit_r_environ()</a></code>, add a line <code>ANTHROPIC_API_KEY=sk-ant-...</code>, save, and restart R. Any tool-capable ellmer provider works via the <code>chat</code> argument — OpenAI, Gemini, Bedrock, or a local model through Ollama.</p>
+<p>You also need an API key for an LLM provider. atlas defaults to Anthropic: run <code><a href="https://usethis.r-lib.org/reference/edit.html" class="external-link">usethis::edit_r_environ()</a></code>, add a line <code>ANTHROPIC_API_KEY=sk-ant-...</code>, save, and restart R. Any tool-capable ellmer provider works via the <code>chat</code> argument - OpenAI, Gemini, Bedrock, or a local model through Ollama.</p>
 </div>
 <div class="section level2">
 <h2 id="usage">Usage<a class="anchor" aria-label="anchor" href="#usage"></a>
@@ -83,7 +83,7 @@
 <code class="sourceCode R"><span><span class="kw"><a href="https://rdrr.io/r/base/library.html" class="external-link">library</a></span><span class="op">(</span><span class="va"><a href="https://github.com/mattyoreilly/Atlas" class="external-link">atlas</a></span><span class="op">)</span></span>
 <span></span>
 <span><span class="va">res</span> <span class="op">&lt;-</span> <span class="fu"><a href="reference/atlas.html">atlas</a></span><span class="op">(</span><span class="va">mtcars</span>, outcome <span class="op">=</span> <span class="st">"mpg"</span>, goal <span class="op">=</span> <span class="st">"prioritise interpretability"</span><span class="op">)</span></span></code></pre></div>
-<p>The agent narrates as it works. It profiles the data (flagging suspected target leakage), proposes a plan — model families chosen to match the outcome’s distribution, a seeded validation scheme, any monotone effects it believes the domain implies — and <strong>waits for your approval in the console</strong>. You can answer “yes”, or redirect it: “only linear models, and don’t use qsec”. Then it builds up to <code>n_models</code> candidates, compares them on held-out data, refines the winner’s features until improvement stalls, verifies any constraints, and — with <a href="https://mattyoreilly.github.io/modelblueprint/" class="external-link">modelblueprint</a> installed — writes a full validation workup (gain, calibration, grouped residuals, one-ways, PDPs) to the run directory.</p>
+<p>The agent narrates as it works. It profiles the data (flagging suspected target leakage), proposes a plan - model families chosen to match the outcome’s distribution, a seeded validation scheme, any monotone effects it believes the domain implies - and <strong>waits for your approval in the console</strong>. You can answer “yes”, or redirect it: “only linear models, and don’t use qsec”. Then it builds up to <code>n_models</code> candidates, compares them on held-out data, refines the winner’s features until improvement stalls, verifies any constraints, and - with <a href="https://mattyoreilly.github.io/modelblueprint/" class="external-link">modelblueprint</a> installed - writes a full validation workup (gain, calibration, grouped residuals, one-ways, PDPs) to the run directory.</p>
 <div class="sourceCode" id="cb3"><pre class="downlit sourceCode r">
 <code class="sourceCode R"><span><span class="va">res</span>               <span class="co"># leaderboard, constraint compliance, report, cost</span></span>
 <span><span class="va">res</span><span class="op">$</span><span class="va">models</span>        <span class="co"># fitted models: predict(res$models$glm1, newdata)</span></span>
@@ -96,17 +96,17 @@
 <p>Every run walks the same six stages, and you hold the pen at stage 2:</p>
 <ol style="list-style-type: decimal">
 <li>
-<strong>Explore</strong> — dimensions, types, missingness, the outcome’s distribution; automatic leakage screening.</li>
+<strong>Explore</strong> - dimensions, types, missingness, the outcome’s distribution; automatic leakage screening.</li>
 <li>
-<strong>Plan, then stop for you</strong> — candidate families matched to the outcome’s distribution, a validation scheme, suggested monotone constraints. Approval is a conversation: whatever you type is folded into the plan.</li>
+<strong>Plan, then stop for you</strong> - candidate families matched to the outcome’s distribution, a validation scheme, suggested monotone constraints. Approval is a conversation: whatever you type is folded into the plan.</li>
 <li>
-<strong>Build</strong> — up to <code>n_models</code> candidates, compared on held-out data.</li>
+<strong>Build</strong> - up to <code>n_models</code> candidates, compared on held-out data.</li>
 <li>
-<strong>Refine</strong> — the winner’s features are iterated one change at a time until the stopping rules call convergence.</li>
+<strong>Refine</strong> - the winner’s features are iterated one change at a time until the stopping rules call convergence.</li>
 <li>
-<strong>Verify</strong> — machine-checked constraints run against every final model; violations trigger repair rounds.</li>
+<strong>Verify</strong> - machine-checked constraints run against every final model; violations trigger repair rounds.</li>
 <li>
-<strong>Document</strong> — report, leaderboard, reproducible script, validation plots, all in the run directory.</li>
+<strong>Document</strong> - report, leaderboard, reproducible script, validation plots, all in the run directory.</li>
 </ol>
 <p>Two kinds of dial control how long this takes. The <em>statistical</em> stopping rules (H2O-style names) are applied by the agent: <code>stopping_rounds</code> consecutive attempts without improvement end an iteration, and gains below <code>stopping_tolerance</code> don’t count. The <em>mechanical</em> budgets are enforced in code and cannot be talked past: after <code>max_steps</code> code executions or <code>max_runtime</code> seconds, the execution tool refuses to run anything more and the agent must finalise with what it has.</p>
 </div>
@@ -121,12 +121,12 @@
 <span>  no_leak <span class="op">=</span> <span class="st">"qsec is measured after the fact; never use it"</span></span>
 <span><span class="op">)</span><span class="op">)</span></span>
 <span><span class="va">res</span><span class="op">$</span><span class="va">constraints</span>    <span class="co"># one row per model x constraint: passed, detail</span></span></code></pre></div>
-<p>Columns that won’t exist at prediction time don’t belong in the data at all — <code>exclude</code> removes them before the agent ever sees it, and <code><a href="reference/atlas_leakage_screen.html">atlas_leakage_screen()</a></code> automatically flags predictors that alone explain almost all of the outcome. See <code><a href="articles/constraints.html">vignette("constraints")</a></code>.</p>
+<p>Columns that won’t exist at prediction time don’t belong in the data at all - <code>exclude</code> removes them before the agent ever sees it, and <code><a href="reference/atlas_leakage_screen.html">atlas_leakage_screen()</a></code> automatically flags predictors that alone explain almost all of the outcome. See <code><a href="articles/constraints.html">vignette("constraints")</a></code>.</p>
 </div>
 <div class="section level2">
 <h2 id="unattended-runs">Unattended runs<a class="anchor" aria-label="anchor" href="#unattended-runs"></a>
 </h2>
-<p>For hands-off experimentation — overnight, in a script, on a schedule — set <code>autonomous = TRUE</code>: the agent states its plan and proceeds instead of waiting for approval, iterating keep/discard experiments under the stopping rules. Pair it with <code>test_prop</code> to hold out rows the agent <strong>never sees</strong>; when the run ends, atlas itself evaluates every surviving model on that test set, so the final ranking can’t be gamed by overfitting the agent’s own validation scheme:</p>
+<p>For hands-off experimentation - overnight, in a script, on a schedule - set <code>autonomous = TRUE</code>: the agent states its plan and proceeds instead of waiting for approval, iterating keep/discard experiments under the stopping rules. Pair it with <code>test_prop</code> to hold out rows the agent <strong>never sees</strong>; when the run ends, atlas itself evaluates every surviving model on that test set, so the final ranking can’t be gamed by overfitting the agent’s own validation scheme:</p>
 <div class="sourceCode" id="cb5"><pre class="downlit sourceCode r">
 <code class="sourceCode R"><span><span class="va">res</span> <span class="op">&lt;-</span> <span class="fu"><a href="reference/atlas.html">atlas</a></span><span class="op">(</span><span class="va">claims</span>, <span class="st">"severity"</span>,</span>
 <span>             autonomous <span class="op">=</span> <span class="cn">TRUE</span>,</span>
@@ -135,7 +135,7 @@
 <span>             test_prop <span class="op">=</span> <span class="fl">0.2</span><span class="op">)</span>                     <span class="co"># the ungameable judge</span></span>
 <span></span>
 <span><span class="va">res</span><span class="op">$</span><span class="va">test_leaderboard</span>   <span class="co"># held-out performance, best first</span></span></code></pre></div>
-<p>Long runs stay affordable: past a token budget (<code>compact_at</code>) the conversation is compacted — transcript archived to disk, context cleared, agent re-oriented from session state at no extra LLM cost — and every results object reports the session’s total dollar <code>cost</code>. See <code><a href="articles/autonomous.html">vignette("autonomous")</a></code>.</p>
+<p>Long runs stay affordable: past a token budget (<code>compact_at</code>) the conversation is compacted - transcript archived to disk, context cleared, agent re-oriented from session state at no extra LLM cost - and every results object reports the session’s total dollar <code>cost</code>. See <code><a href="articles/autonomous.html">vignette("autonomous")</a></code>.</p>
 </div>
 <div class="section level2">
 <h2 id="sessions">Sessions<a class="anchor" aria-label="anchor" href="#sessions"></a>
@@ -151,11 +151,11 @@
 </h2>
 <ul>
 <li>
-<strong>Columns are the scaling limit, not rows.</strong> Fitting is local, so a million rows just take the time they take — but the agent reasons about variables by name, and past a few dozen columns that reasoning degrades. Pre-select features for wide data.</li>
+<strong>Columns are the scaling limit, not rows.</strong> Fitting is local, so a million rows just take the time they take - but the agent reasons about variables by name, and past a few dozen columns that reasoning degrades. Pre-select features for wide data.</li>
 <li>
 <strong>Cost scales with agent steps</strong>, not data size: more candidates, more repair rounds, more follow-ups mean more LLM calls. <code>print(res)</code> shows what a session cost.</li>
 <li>
-<strong>The statistical stopping rules are agent-applied.</strong> For guarantees, use the mechanical budgets (<code>max_steps</code>, <code>max_runtime</code>) — those are enforced by atlas, not the model.</li>
+<strong>The statistical stopping rules are agent-applied.</strong> For guarantees, use the mechanical budgets (<code>max_steps</code>, <code>max_runtime</code>) - those are enforced by atlas, not the model.</li>
 <li>
 <strong>An agent is not a statistician.</strong> atlas verifies what you tell it to verify; judgment about what the model is <em>for</em> stays with you. Read the report, check <code>res$code</code>, and look at the validation output.</li>
 </ul>
@@ -165,13 +165,13 @@
 </h2>
 <ul>
 <li>
-<code><a href="articles/atlas.html">vignette("atlas")</a></code> — a full walkthrough: setup, the build lifecycle, what you get back, what it costs</li>
+<code><a href="articles/atlas.html">vignette("atlas")</a></code> - a full walkthrough: setup, the build lifecycle, what you get back, what it costs</li>
 <li>
-<code><a href="articles/constraints.html">vignette("constraints")</a></code> — encoding domain knowledge that can’t be ignored</li>
+<code><a href="articles/constraints.html">vignette("constraints")</a></code> - encoding domain knowledge that can’t be ignored</li>
 <li>
-<code><a href="articles/sessions.html">vignette("sessions")</a></code> — persistence, resuming, steering mid-build, and token stewardship</li>
+<code><a href="articles/sessions.html">vignette("sessions")</a></code> - persistence, resuming, steering mid-build, and token stewardship</li>
 <li>
-<code><a href="articles/autonomous.html">vignette("autonomous")</a></code> — unattended runs with hard budgets and a protected test set</li>
+<code><a href="articles/autonomous.html">vignette("autonomous")</a></code> - unattended runs with hard budgets and a protected test set</li>
 </ul>
 </div>
 </div>

@@ -66,11 +66,11 @@ this many consecutive attempts without improvement.}
 
 \item{stopping_tolerance}{Stopping rule: an attempt only counts as an improvement
 if it beats the best validation metric so far by at least this relative
-fraction, between 0 and 1 — e.g. \code{0.05} for 5\%.}
+fraction, between 0 and 1 - e.g. \code{0.05} for 5\%.}
 
 \item{refine}{After the winning algorithm is found (and constraints pass),
-keep iterating on its feature selection and engineering — one change per
-attempt, same validation scheme — until the stopping rules trigger
+keep iterating on its feature selection and engineering - one change per
+attempt, same validation scheme - until the stopping rules trigger
 (\code{stopping_rounds} consecutive attempts without a relative gain of at least
 \code{stopping_tolerance}). The refined model lands in the results as
 \verb{<winner>_refined}, alongside the original.}
@@ -80,7 +80,7 @@ attempt, same validation scheme — until the stopping rules trigger
 HTML files in the run directory, via the \code{modelblueprint} package.
 Silently skipped when \code{modelblueprint} isn't installed.}
 
-\item{exclude}{Columns the models must not use — because they won't be
+\item{exclude}{Columns the models must not use - because they won't be
 available at prediction time in deployment, or they leak the outcome.
 They are removed from the data before the agent sees it. Predictors that
 survive are additionally screened with \code{\link[=atlas_leakage_screen]{atlas_leakage_screen()}}, and the
@@ -89,13 +89,13 @@ agent is told to confirm anything suspicious with you before using it.}
 \item{autonomous}{Run with no human in the loop: the agent states its plan
 and proceeds instead of waiting for approval, and never asks questions.
 Combine with a generous \code{n_models}/\code{stopping_rounds} and \code{test_prop} for
-unattended experimentation runs — e.g.
-\code{atlas(d, "y", autonomous = TRUE, n_models = 10, stopping_rounds = 8, test_prop = 0.2)} — where the agent iterates keep/discard experiments
+unattended experimentation runs - e.g.
+\code{atlas(d, "y", autonomous = TRUE, n_models = 10, stopping_rounds = 8, test_prop = 0.2)} - where the agent iterates keep/discard experiments
 and the survivors are judged on the held-out test set at the end.}
 
 \item{test_prop}{Proportion of rows (0 to <1) to hold out as a final test
 set the agent never sees. After the run, Atlas itself evaluates every
-final model on it (RMSE for continuous outcomes, accuracy otherwise) —
+final model on it (RMSE for continuous outcomes, accuracy otherwise) -
 a ranking the agent can't overfit. Reported as \code{test_leaderboard} in
 the results and saved to \code{test_leaderboard.csv} in the run directory.
 \code{0} (default) disables the split.}

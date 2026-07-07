@@ -2,7 +2,7 @@
 #'
 #' Constraints carry domain knowledge into the build: the description is put
 #' in front of the agent as a hard requirement, and if `check` is supplied the
-#' constraint is *verified* — every final model is tested after the build, and
+#' constraint is *verified* - every final model is tested after the build, and
 #' violations are sent back to the agent to fix (see `max_fix_rounds` in
 #' [atlas()]). Plain strings passed to `constraints` are shorthand for
 #' `constraint(<string>)`: enforced via instructions only.
@@ -77,8 +77,8 @@ con_uses <- function(var) {
 #'
 #' Monotonicity is non-strict, so a model that does not use `var` at all
 #' passes trivially (a flat response is monotone). This makes the constraint
-#' conditional — "if the model responds to `var`, the effect must be
-#' monotone" — without forcing the variable in. Pair with [con_uses()] when
+#' conditional - "if the model responds to `var`, the effect must be
+#' monotone" - without forcing the variable in. Pair with [con_uses()] when
 #' the variable must also be used.
 #'
 #' @param var Column name (numeric) the response must be monotonic in.
@@ -180,7 +180,7 @@ atlas_leakage_screen <- function(data, outcome, threshold = 0.95,
 #' [con_uses()], "mpg should never increase with weight" becomes
 #' [con_monotone()], and anything else becomes a prompt-enforced
 #' [constraint()]. Returns the list for you to inspect (print it!) before
-#' passing to [atlas()] — the parse is a judgment call, so review it.
+#' passing to [atlas()] - the parse is a judgment call, so review it.
 #'
 #' @param text The brief, in plain language. Sentences, bullets, whatever.
 #' @param data Optional data.frame the constraints are about; its column

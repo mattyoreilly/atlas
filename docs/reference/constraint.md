@@ -2,7 +2,7 @@
 
 Constraints carry domain knowledge into the build: the description is
 put in front of the agent as a hard requirement, and if `check` is
-supplied the constraint is *verified* — every final model is tested
+supplied the constraint is *verified* - every final model is tested
 after the build, and violations are sent back to the agent to fix (see
 `max_fix_rounds` in
 [`atlas()`](https://mattyoreilly.github.io/Atlas/reference/atlas.md)).

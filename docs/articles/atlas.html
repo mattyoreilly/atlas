@@ -68,8 +68,8 @@
 
     
     
-<p>Atlas automates the workmanlike part of modeling — explore, propose,
-fit, compare, refine, document — while keeping you in charge of every
+<p>Atlas automates the workmanlike part of modeling - explore, propose,
+fit, compare, refine, document - while keeping you in charge of every
 judgment call. An LLM agent does the work by writing and running R code
 in your session, narrating as it goes and pausing for your approval at
 the moments that matter.</p>
@@ -79,7 +79,7 @@ evaluated here because they need an API key.</p>
 <ul>
 <li>
 <strong>Your data never leaves your machine.</strong> The agent
-receives a compact profile — dimensions, column names and types — plus
+receives a compact profile - dimensions, column names and types - plus
 whatever output its own code prints. Model fitting is ordinary local
 R.</li>
 <li>
@@ -99,7 +99,7 @@ persistent way to set it:</p>
 <code class="sourceCode R"><span><span class="fu">usethis</span><span class="fu">::</span><span class="fu"><a href="https://usethis.r-lib.org/reference/edit.html" class="external-link">edit_r_environ</a></span><span class="op">(</span><span class="op">)</span></span></code></pre></div>
 <p>Add one line (no quotes), save, restart R:</p>
 <pre><code><span><span class="va">ANTHROPIC_API_KEY</span><span class="op">=</span><span class="va">sk</span><span class="op">-</span><span class="va">ant</span><span class="op">-</span><span class="va">...</span></span></code></pre>
-<p>Every tool-capable ellmer provider is a drop-in replacement — pass
+<p>Every tool-capable ellmer provider is a drop-in replacement - pass
 one via <code>chat</code>:</p>
 <div class="sourceCode" id="cb3"><pre class="downlit sourceCode r">
 <code class="sourceCode R"><span><span class="va">res</span> <span class="op">&lt;-</span> <span class="fu"><a href="../reference/atlas.html">atlas</a></span><span class="op">(</span><span class="va">mtcars</span>, <span class="st">"mpg"</span>, chat <span class="op">=</span> <span class="fu">ellmer</span><span class="fu">::</span><span class="fu"><a href="https://ellmer.tidyverse.org/reference/chat_openai.html" class="external-link">chat_openai</a></span><span class="op">(</span>model <span class="op">=</span> <span class="st">"gpt-5"</span><span class="op">)</span><span class="op">)</span></span></code></pre></div>
@@ -119,29 +119,33 @@ dimensions, types, missingness, and the outcome’s distribution.
 Predictors that alone explain nearly all of the outcome are flagged as
 suspected target leakage (see <code><a href="../reference/atlas_leakage_screen.html">atlas_leakage_screen()</a></code>) and
 must be confirmed with you before the agent may use them.</p></li>
-<li><p><strong>Plan — and stop for you.</strong> The agent proposes
+<li><p><strong>Plan - and stop for you.</strong> The agent proposes
 candidate model families <em>chosen to match the outcome’s
 distribution</em> (binary outcome → binomial; counts → Poisson-family;
 skewed positive → Gamma/Tweedie or a log transform), a validation scheme
 with a fixed seed, and any monotone effects it believes the domain
 implies. It then asks for your approval in the console. This is a
-conversation, not a checkbox: answer <code>yes</code>, or redirect —
-“drop the tree model, and don’t use qsec” — and the plan is revised
+conversation, not a checkbox: answer <code>yes</code>, or redirect -
+“drop the tree model, and don’t use qsec” - and the plan is revised
 before anything is fitted.</p></li>
 <li><p><strong>Build.</strong> Up to <code>n_models</code> candidates
 are fitted and compared on held-out data, one narrated line per
 candidate.</p></li>
-<li><p><strong>Refine.</strong> The winner’s feature selection and
-engineering are iterated — one change per attempt, same validation
-scheme — until the stopping rules call convergence. The refined model
-joins the results as <code>&lt;winner&gt;_refined</code>, next to the
-original.</p></li>
+<li>
+<p><strong>Refine.</strong> The winner’s feature selection and
+engineering are iterated</p>
+<ul>
+<li>one change per attempt, same validation scheme - until the stopping
+rules call convergence. The refined model joins the results as
+<code>&lt;winner&gt;_refined</code>, next to the original.</li>
+</ul>
+</li>
 <li><p><strong>Verify.</strong> Machine-checked constraints (if you
 passed any) are tested against every final model; violations go back to
 the agent for repair. See <code><a href="../articles/constraints.html">vignette("constraints")</a></code>.</p></li>
 <li><p><strong>Document.</strong> With the <code>modelblueprint</code>
-package installed, the winning model gets a full validation workup —
-gain chart, calibration, grouped residuals, one-way plots, PDPs —
+package installed, the winning model gets a full validation workup -
+gain chart, calibration, grouped residuals, one-way plots, PDPs -
 written to the run directory as interactive HTML, alongside a portable
 model bundle.</p></li>
 </ol>
@@ -157,11 +161,11 @@ candidate building and refinement alike:</p>
 <span>  n_models           <span class="op">=</span> <span class="fl">5</span>,     <span class="co"># at most five candidates</span></span>
 <span>  stopping_rounds    <span class="op">=</span> <span class="fl">3</span>,     <span class="co"># stop after 3 attempts without improvement</span></span>
 <span>  stopping_tolerance <span class="op">=</span> <span class="fl">0.05</span><span class="op">)</span>  <span class="co"># gains under 5% (relative) don't count</span></span></code></pre></div>
-<p>The report always states <em>why</em> iteration stopped — limit
+<p>The report always states <em>why</em> iteration stopped - limit
 reached or converged. These rules are applied by the agent itself; for
 hard guarantees on unattended runs there are also mechanically enforced
 budgets, <code>max_steps</code> (code executions) and
-<code>max_runtime</code> (seconds) — once exhausted, the execution tool
+<code>max_runtime</code> (seconds) - once exhausted, the execution tool
 refuses to run further code and the agent must finalise from what it
 has.</p>
 </div>
@@ -184,10 +188,10 @@ ask it:</p>
 <div class="sourceCode" id="cb7"><pre class="downlit sourceCode r">
 <code class="sourceCode R"><span><span class="va">res</span><span class="op">$</span><span class="va">session</span><span class="op">$</span><span class="fu">tell</span><span class="op">(</span><span class="st">"why did the refined model beat the original?"</span><span class="op">)</span></span>
 <span><span class="va">res</span><span class="op">$</span><span class="va">session</span><span class="op">$</span><span class="fu">tell</span><span class="op">(</span><span class="st">"build one more candidate that uses at most 3 predictors"</span><span class="op">)</span></span></code></pre></div>
-<p>Sessions also survive R itself — see
+<p>Sessions also survive R itself - see
 <code><a href="../articles/sessions.html">vignette("sessions")</a></code> for resuming, crash recovery, and
-interrupting a build in progress. For fully unattended runs — no
-approval gate, hard budgets, and a protected test set — see
+interrupting a build in progress. For fully unattended runs - no
+approval gate, hard budgets, and a protected test set - see
 <code><a href="../articles/autonomous.html">vignette("autonomous")</a></code>.</p>
 </div>
 <div class="section level2">
@@ -195,7 +199,7 @@ approval gate, hard budgets, and a protected test set — see
 </h2>
 <p>Only the conversation costs money: column metadata and printed
 summaries go up, narration and small code chunks come down, and
-everything heavy — the data, the fitting, the models — stays on your
+everything heavy - the data, the fitting, the models - stays on your
 machine. A typical build is a few dozen LLM calls; more candidates,
 repair rounds, and follow-ups mean more calls, but more <em>rows</em>
 don’t.</p>
@@ -223,8 +227,8 @@ tokens.</li>
 <li>
 <strong>Columns: double digits are ideal, low hundreds the practical
 ceiling.</strong> The agent reasons about variables by name; its data
-profile lists up to 50 columns. For wide data — one-hot blocks, text
-features, omics — pre-select first, or tell it how in <code>goal</code>
+profile lists up to 50 columns. For wide data - one-hot blocks, text
+features, omics - pre-select first, or tell it how in <code>goal</code>
 (“variance filter, then work with the top 30”).</li>
 <li>
 <strong>Cost scales with agent steps.</strong> More candidates, more

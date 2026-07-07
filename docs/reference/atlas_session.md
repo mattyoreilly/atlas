@@ -10,13 +10,13 @@ when it needs a decision (interactive sessions only).
 
 ## Run directory contents
 
-- `data.rds`, `meta.rds` — inputs, so the session can be rebuilt cold
+- `data.rds`, `meta.rds` - inputs, so the session can be rebuilt cold
 
-- `code.R` / `code.rds` — every code chunk the agent executed
+- `code.R` / `code.rds` - every code chunk the agent executed
 
-- `turns.rds` — the full conversation
+- `turns.rds` - the full conversation
 
-- `report.md`, `leaderboard.csv`, `models.rds` — final artifacts
+- `report.md`, `leaderboard.csv`, `models.rds` - final artifacts
 
 ## Public fields
 
@@ -130,7 +130,7 @@ Create a session.
 
   Run directory for checkpoints and all output (reports, validation
   plots, model bundles). Defaults to a timestamped folder under
-  `getOption("atlas.dir", ".atlas")` — set
+  `getOption("atlas.dir", ".atlas")` - set
   `options(atlas.dir = "~/atlas-runs")` once to send every run to a
   location of your choosing, or pass `dir` explicitly per run.
 
@@ -205,7 +205,7 @@ Create a session.
 
   Hard budget: the maximum number of code executions the agent gets in
   this session. Unlike the stopping rules (which the agent applies
-  itself), this is mechanically enforced — past the limit the
+  itself), this is mechanically enforced - past the limit the
   `run_r_code` tool refuses to execute and instructs the agent to
   finalise from what it has. `Inf` (default) disables.
 
@@ -248,8 +248,8 @@ times.
 - `refine`:
 
   After the winning algorithm is found (and constraints pass), iterate
-  on its feature selection and engineering — one change per attempt,
-  same validation scheme — until the session's stopping rules trigger
+  on its feature selection and engineering - one change per attempt,
+  same validation scheme - until the session's stopping rules trigger
   (`stopping_rounds` attempts without a `stopping_tolerance` gain). The
   refined model is added to the results alongside the original.
 
@@ -329,7 +329,7 @@ models), `leaderboard` (data.frame of validation metrics), `report`
 Compact the conversation to save tokens: archive the transcript to the
 run directory, clear the context window, and re-orient the agent with a
 state briefing on the next message. The R environment (models, data) and
-code log are untouched — they are the durable memory. Called
+code log are untouched - they are the durable memory. Called
 automatically when the context exceeds `compact_at`; call it yourself
 before a long follow-up to start from a lean window.
 

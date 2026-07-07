@@ -74,8 +74,8 @@ memory second. The design has one load-bearing idea: <strong>the code
 log is the source of truth</strong>. Arbitrary R environments can’t be
 reliably serialised, but a recorded script re-run against the same data
 reconstructs one exactly. Atlas therefore checkpoints every code chunk
-the moment it executes, and “resuming” means replaying that script —
-models included — then restoring the conversation.</p>
+the moment it executes, and “resuming” means replaying that script -
+models included - then restoring the conversation.</p>
 <div class="section level2">
 <h2 id="the-session-object">The session object<a class="anchor" aria-label="anchor" href="#the-session-object"></a>
 </h2>
@@ -98,7 +98,7 @@ away.</p>
 <div class="section level2">
 <h2 id="whats-on-disk">What’s on disk<a class="anchor" aria-label="anchor" href="#whats-on-disk"></a>
 </h2>
-<p>Each session owns a run directory — by default a timestamped folder
+<p>Each session owns a run directory - by default a timestamped folder
 under <code>getOption("atlas.dir", ".atlas")</code>; set that option
 once, or pass <code>dir</code> per run.</p>
 <table class="table">
@@ -121,7 +121,7 @@ once, or pass <code>dir</code> per run.</p>
 </tr>
 <tr class="odd">
 <td><code>code.R</code></td>
-<td>every chunk the agent ran — a readable script</td>
+<td>every chunk the agent ran - a readable script</td>
 </tr>
 <tr class="even">
 <td><code>code.rds</code></td>
@@ -148,7 +148,7 @@ once, or pass <code>dir</code> per run.</p>
 <p>Checkpoints are written after every tool call and every reply, so at
 worst a crash loses the single in-flight step. <code>code.R</code>
 doubles as the reproducibility artifact: plain R you can read, audit, or
-run without Atlas — or an API key.</p>
+run without Atlas - or an API key.</p>
 </div>
 <div class="section level2">
 <h2 id="resuming">Resuming<a class="anchor" aria-label="anchor" href="#resuming"></a>
@@ -168,7 +168,7 @@ take minutes to fit takes those minutes again.</p>
 </h2>
 <p>You don’t have to wait for the agent to ask you something. Interrupt
 with <code>Ctrl+C</code> / <code>Esc</code>, then resume with the new
-information — the work up to the interruption was already
+information - the work up to the interruption was already
 checkpointed:</p>
 <div class="sourceCode" id="cb3"><pre class="downlit sourceCode r">
 <code class="sourceCode R"><span><span class="va">res</span> <span class="op">&lt;-</span> <span class="fu"><a href="../reference/atlas.html">atlas</a></span><span class="op">(</span><span class="va">big_data</span>, <span class="st">"claim_cost"</span><span class="op">)</span>   <span class="co"># Ctrl+C mid-build...</span></span>
@@ -184,7 +184,7 @@ instruction; return <code>NULL</code> when there is nothing to say.</p>
 <div class="section level2">
 <h2 id="staying-inside-the-token-budget">Staying inside the token budget<a class="anchor" aria-label="anchor" href="#staying-inside-the-token-budget"></a>
 </h2>
-<p>The conversation is the only part of a session that grows — and LLM
+<p>The conversation is the only part of a session that grows - and LLM
 APIs re-read the whole context on every request, so an unmanaged
 conversation costs more with every step and eventually overflows the
 model’s window. atlas manages it automatically, exploiting the same
@@ -192,9 +192,9 @@ design idea as resume: the conversation is not the real memory.</p>
 <p>Past <code>compact_at</code> input tokens (default 100,000, cached
 tokens included), the next message triggers compaction: the transcript
 is archived to the run directory (<code>turns-archive-01.rds</code>,
-<code>-02</code>, …— nothing is deleted), the window is cleared, and the
+<code>-02</code>, …- nothing is deleted), the window is cleared, and the
 message is prefixed with a re-orientation briefing built from ground
-truth — the models in <code>atlas_models</code>, the current
+truth - the models in <code>atlas_models</code>, the current
 leaderboard, the number of code chunks run. Because the briefing is
 assembled deterministically from session state, it costs no extra LLM
 call and cannot hallucinate, unlike a model-written summary.</p>
@@ -209,8 +209,8 @@ straight from ellmer’s token accounting.</p>
 <div class="section level2">
 <h2 id="questions-from-the-agent">Questions from the agent<a class="anchor" aria-label="anchor" href="#questions-from-the-agent"></a>
 </h2>
-<p>The agent asks for plan approval — and anything else it genuinely
-needs — through its <code>ask_user</code> tool. In an interactive
+<p>The agent asks for plan approval - and anything else it genuinely
+needs - through its <code>ask_user</code> tool. In an interactive
 session the question is printed and the console blocks on your answer;
 treat it as a conversation, not a yes/no gate, since whatever you type
 is folded into the plan. In non-interactive contexts
@@ -224,7 +224,7 @@ hang. Front-ends can supply their own handler via
 </h2>
 <p><code>verbose = TRUE</code> (default) streams the narration, each
 code chunk, its output, and constraint-check tables to the console.
-<code>verbose = FALSE</code> runs silently — everything still
+<code>verbose = FALSE</code> runs silently - everything still
 checkpoints, so <code>report.md</code> and <code>code.R</code> tell the
 story afterwards.</p>
 </div>

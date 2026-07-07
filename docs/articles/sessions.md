@@ -6,8 +6,8 @@ second. The design has one load-bearing idea: **the code log is the
 source of truth**. Arbitrary R environments can’t be reliably
 serialised, but a recorded script re-run against the same data
 reconstructs one exactly. Atlas therefore checkpoints every code chunk
-the moment it executes, and “resuming” means replaying that script —
-models included — then restoring the conversation.
+the moment it executes, and “resuming” means replaying that script -
+models included - then restoring the conversation.
 
 ## The session object
 
@@ -33,7 +33,7 @@ follow-up is never more than one call away.
 
 ## What’s on disk
 
-Each session owns a run directory — by default a timestamped folder
+Each session owns a run directory - by default a timestamped folder
 under `getOption("atlas.dir", ".atlas")`; set that option once, or pass
 `dir` per run.
 
@@ -41,7 +41,7 @@ under `getOption("atlas.dir", ".atlas")`; set that option once, or pass
 |-------------------|--------------------------------------------------|
 | `data.rds`        | the training data, so a resume works cold        |
 | `meta.rds`        | outcome, stopping rules, goal, constraints       |
-| `code.R`          | every chunk the agent ran — a readable script    |
+| `code.R`          | every chunk the agent ran - a readable script    |
 | `code.rds`        | the same chunks, exactly as recorded, for replay |
 | `turns.rds`       | the full conversation                            |
 | `report.md`       | the agent’s report                               |
@@ -51,7 +51,7 @@ under `getOption("atlas.dir", ".atlas")`; set that option once, or pass
 Checkpoints are written after every tool call and every reply, so at
 worst a crash loses the single in-flight step. `code.R` doubles as the
 reproducibility artifact: plain R you can read, audit, or run without
-Atlas — or an API key.
+Atlas - or an API key.
 
 ## Resuming
 
@@ -72,7 +72,7 @@ again.
 ## Interrupting a build
 
 You don’t have to wait for the agent to ask you something. Interrupt
-with `Ctrl+C` / `Esc`, then resume with the new information — the work
+with `Ctrl+C` / `Esc`, then resume with the new information - the work
 up to the interruption was already checkpointed:
 
 ``` r
@@ -91,7 +91,7 @@ say.
 
 ## Staying inside the token budget
 
-The conversation is the only part of a session that grows — and LLM APIs
+The conversation is the only part of a session that grows - and LLM APIs
 re-read the whole context on every request, so an unmanaged conversation
 costs more with every step and eventually overflows the model’s window.
 atlas manages it automatically, exploiting the same design idea as
@@ -99,9 +99,9 @@ resume: the conversation is not the real memory.
 
 Past `compact_at` input tokens (default 100,000, cached tokens
 included), the next message triggers compaction: the transcript is
-archived to the run directory (`turns-archive-01.rds`, `-02`, …— nothing
+archived to the run directory (`turns-archive-01.rds`, `-02`, …- nothing
 is deleted), the window is cleared, and the message is prefixed with a
-re-orientation briefing built from ground truth — the models in
+re-orientation briefing built from ground truth - the models in
 `atlas_models`, the current leaderboard, the number of code chunks run.
 Because the briefing is assembled deterministically from session state,
 it costs no extra LLM call and cannot hallucinate, unlike a
@@ -121,9 +121,9 @@ accounting.
 
 ## Questions from the agent
 
-The agent asks for plan approval — and anything else it genuinely needs
-— through its `ask_user` tool. In an interactive session the question is
-printed and the console blocks on your answer; treat it as a
+The agent asks for plan approval - and anything else it genuinely
+needs - through its `ask_user` tool. In an interactive session the
+question is printed and the console blocks on your answer; treat it as a
 conversation, not a yes/no gate, since whatever you type is folded into
 the plan. In non-interactive contexts (`Rscript`, CI) the tool tells the
 agent to use its best judgment and record the decision in the report, so
@@ -134,5 +134,5 @@ scripted runs never hang. Front-ends can supply their own handler via
 
 `verbose = TRUE` (default) streams the narration, each code chunk, its
 output, and constraint-check tables to the console. `verbose = FALSE`
-runs silently — everything still checkpoints, so `report.md` and
+runs silently - everything still checkpoints, so `report.md` and
 `code.R` tell the story afterwards.

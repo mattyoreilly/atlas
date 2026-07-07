@@ -18,8 +18,8 @@
 #'   this many consecutive attempts without improvement.
 #' @param stopping_tolerance Stopping rule: an attempt only counts as an improvement
 #'   if it beats the best validation metric so far by at least this relative
-#'   fraction, between 0 and 1 — e.g. `0.05` for 5%.
-#' @param exclude Columns the models must not use — because they won't be
+#'   fraction, between 0 and 1 - e.g. `0.05` for 5%.
+#' @param exclude Columns the models must not use - because they won't be
 #'   available at prediction time in deployment, or they leak the outcome.
 #'   They are removed from the data before the agent sees it. Predictors that
 #'   survive are additionally screened with [atlas_leakage_screen()], and the
@@ -36,8 +36,8 @@
 #' @param max_fix_rounds How many automatic constraint-repair rounds to allow
 #'   after the initial build.
 #' @param refine After the winning algorithm is found (and constraints pass),
-#'   keep iterating on its feature selection and engineering — one change per
-#'   attempt, same validation scheme — until the stopping rules trigger
+#'   keep iterating on its feature selection and engineering - one change per
+#'   attempt, same validation scheme - until the stopping rules trigger
 #'   (`stopping_rounds` consecutive attempts without a relative gain of at least
 #'   `stopping_tolerance`). The refined model lands in the results as
 #'   `<winner>_refined`, alongside the original.
@@ -56,13 +56,13 @@
 #' @param autonomous Run with no human in the loop: the agent states its plan
 #'   and proceeds instead of waiting for approval, and never asks questions.
 #'   Combine with a generous `n_models`/`stopping_rounds` and `test_prop` for
-#'   unattended experimentation runs — e.g.
+#'   unattended experimentation runs - e.g.
 #'   `atlas(d, "y", autonomous = TRUE, n_models = 10, stopping_rounds = 8,
-#'   test_prop = 0.2)` — where the agent iterates keep/discard experiments
+#'   test_prop = 0.2)` - where the agent iterates keep/discard experiments
 #'   and the survivors are judged on the held-out test set at the end.
 #' @param test_prop Proportion of rows (0 to <1) to hold out as a final test
 #'   set the agent never sees. After the run, Atlas itself evaluates every
-#'   final model on it (RMSE for continuous outcomes, accuracy otherwise) —
+#'   final model on it (RMSE for continuous outcomes, accuracy otherwise) -
 #'   a ranking the agent can't overfit. Reported as `test_leaderboard` in
 #'   the results and saved to `test_leaderboard.csv` in the run directory.
 #'   `0` (default) disables the split.

@@ -43,8 +43,8 @@ An `atlas_constraint`.
 
 Monotonicity is non-strict, so a model that does not use `var` at all
 passes trivially (a flat response is monotone). This makes the
-constraint conditional — "if the model responds to `var`, the effect
-must be monotone" — without forcing the variable in. Pair with
+constraint conditional - "if the model responds to `var`, the effect
+must be monotone" - without forcing the variable in. Pair with
 [`con_uses()`](https://mattyoreilly.github.io/Atlas/reference/con_uses.md)
 when the variable must also be used.
 

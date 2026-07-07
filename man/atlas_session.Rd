@@ -14,10 +14,10 @@ the console when it needs a decision (interactive sessions only).
 \section{Run directory contents}{
 
 \itemize{
-\item \code{data.rds}, \code{meta.rds} — inputs, so the session can be rebuilt cold
-\item \code{code.R} / \code{code.rds} — every code chunk the agent executed
-\item \code{turns.rds} — the full conversation
-\item \code{report.md}, \code{leaderboard.csv}, \code{models.rds} — final artifacts
+\item \code{data.rds}, \code{meta.rds} - inputs, so the session can be rebuilt cold
+\item \code{code.R} / \code{code.rds} - every code chunk the agent executed
+\item \code{turns.rds} - the full conversation
+\item \code{report.md}, \code{leaderboard.csv}, \code{models.rds} - final artifacts
 }
 }
 
@@ -107,7 +107,7 @@ every final model.}
 \code{ellmer::chat_anthropic()}. Any ellmer provider works.}
       \item{\code{dir}}{Run directory for checkpoints and all output (reports,
 validation plots, model bundles). Defaults to a timestamped folder
-under \code{getOption("atlas.dir", ".atlas")} — set
+under \code{getOption("atlas.dir", ".atlas")} - set
 \code{options(atlas.dir = "~/atlas-runs")} once to send every run to a
 location of your choosing, or pass \code{dir} explicitly per run.}
       \item{\code{on_ask}}{Optional handler for the agent's questions:
@@ -149,7 +149,7 @@ inside the model's context window and stop paying to re-read their
 own history. Set to \code{Inf} to disable.}
       \item{\code{max_steps}}{Hard budget: the maximum number of code executions
 the agent gets in this session. Unlike the stopping rules (which the
-agent applies itself), this is mechanically enforced — past the
+agent applies itself), this is mechanically enforced - past the
 limit the \code{run_r_code} tool refuses to execute and instructs the
 agent to finalise from what it has. \code{Inf} (default) disables.}
       \item{\code{max_runtime}}{Hard budget: wall-clock seconds for this session
@@ -185,8 +185,8 @@ to \code{max_fix_rounds} times.
       \item{\code{verbose}}{Show the agent's narration, code, and output live.}
       \item{\code{max_fix_rounds}}{How many constraint-repair rounds to allow.}
       \item{\code{refine}}{After the winning algorithm is found (and constraints
-pass), iterate on its feature selection and engineering — one change
-per attempt, same validation scheme — until the session's stopping
+pass), iterate on its feature selection and engineering - one change
+per attempt, same validation scheme - until the session's stopping
 rules trigger (\code{stopping_rounds} attempts without a \code{stopping_tolerance} gain).
 The refined model is added to the results alongside the original.}
       \item{\code{validate}}{Produce reviewable validation output (gain,
@@ -267,7 +267,7 @@ fitted models), \code{leaderboard} (data.frame of validation metrics),
   Compact the conversation to save tokens: archive the
 transcript to the run directory, clear the context window, and
 re-orient the agent with a state briefing on the next message. The
-R environment (models, data) and code log are untouched — they are
+R environment (models, data) and code log are untouched - they are
 the durable memory. Called automatically when the context exceeds
 \code{compact_at}; call it yourself before a long follow-up to start
 from a lean window.

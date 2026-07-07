@@ -6,7 +6,7 @@ explores the data, proposes a modeling plan for your approval, then
 writes and runs R code to fit, compare, and refine candidate models. You
 get back fitted models ready for
 [`predict()`](https://rdrr.io/r/stats/predict.html), a leaderboard, a
-written report — and, because the agent works by writing R, the complete
+written report - and, because the agent works by writing R, the complete
 script of everything it did.
 
 Three ideas separate atlas from “ask a chatbot for model code”:
@@ -18,7 +18,7 @@ Three ideas separate atlas from “ask a chatbot for model code”:
 
 - **Sessions are persistent.** Every code chunk and conversation turn is
   checkpointed to disk as it happens. A crash, a restart, or a
-  deliberate interruption loses nothing — resume and keep going.
+  deliberate interruption loses nothing - resume and keep going.
 
 - **Your data stays on your machine.** The LLM sees column names, types,
   and printed summaries, never the rows. All fitting happens locally in
@@ -39,7 +39,7 @@ You also need an API key for an LLM provider. atlas defaults to
 Anthropic: run
 [`usethis::edit_r_environ()`](https://usethis.r-lib.org/reference/edit.html),
 add a line `ANTHROPIC_API_KEY=sk-ant-...`, save, and restart R. Any
-tool-capable ellmer provider works via the `chat` argument — OpenAI,
+tool-capable ellmer provider works via the `chat` argument - OpenAI,
 Gemini, Bedrock, or a local model through Ollama.
 
 ## Usage
@@ -52,15 +52,15 @@ res <- atlas(mtcars, outcome = "mpg", goal = "prioritise interpretability")
 ```
 
 The agent narrates as it works. It profiles the data (flagging suspected
-target leakage), proposes a plan — model families chosen to match the
+target leakage), proposes a plan - model families chosen to match the
 outcome’s distribution, a seeded validation scheme, any monotone effects
-it believes the domain implies — and **waits for your approval in the
+it believes the domain implies - and **waits for your approval in the
 console**. You can answer “yes”, or redirect it: “only linear models,
 and don’t use qsec”. Then it builds up to `n_models` candidates,
 compares them on held-out data, refines the winner’s features until
-improvement stalls, verifies any constraints, and — with
+improvement stalls, verifies any constraints, and - with
 [modelblueprint](https://mattyoreilly.github.io/modelblueprint/)
-installed — writes a full validation workup (gain, calibration, grouped
+installed - writes a full validation workup (gain, calibration, grouped
 residuals, one-ways, PDPs) to the run directory.
 
 ``` r
@@ -75,18 +75,18 @@ res$session$tell("why did the refined model win?")   # keep talking
 
 Every run walks the same six stages, and you hold the pen at stage 2:
 
-1.  **Explore** — dimensions, types, missingness, the outcome’s
+1.  **Explore** - dimensions, types, missingness, the outcome’s
     distribution; automatic leakage screening.
-2.  **Plan, then stop for you** — candidate families matched to the
+2.  **Plan, then stop for you** - candidate families matched to the
     outcome’s distribution, a validation scheme, suggested monotone
     constraints. Approval is a conversation: whatever you type is folded
     into the plan.
-3.  **Build** — up to `n_models` candidates, compared on held-out data.
-4.  **Refine** — the winner’s features are iterated one change at a time
+3.  **Build** - up to `n_models` candidates, compared on held-out data.
+4.  **Refine** - the winner’s features are iterated one change at a time
     until the stopping rules call convergence.
-5.  **Verify** — machine-checked constraints run against every final
+5.  **Verify** - machine-checked constraints run against every final
     model; violations trigger repair rounds.
-6.  **Document** — report, leaderboard, reproducible script, validation
+6.  **Document** - report, leaderboard, reproducible script, validation
     plots, all in the run directory.
 
 Two kinds of dial control how long this takes. The *statistical*
@@ -116,7 +116,7 @@ res$constraints    # one row per model x constraint: passed, detail
 ```
 
 Columns that won’t exist at prediction time don’t belong in the data at
-all — `exclude` removes them before the agent ever sees it, and
+all - `exclude` removes them before the agent ever sees it, and
 [`atlas_leakage_screen()`](https://mattyoreilly.github.io/Atlas/reference/atlas_leakage_screen.md)
 automatically flags predictors that alone explain almost all of the
 outcome. See
@@ -124,7 +124,7 @@ outcome. See
 
 ## Unattended runs
 
-For hands-off experimentation — overnight, in a script, on a schedule —
+For hands-off experimentation - overnight, in a script, on a schedule -
 set `autonomous = TRUE`: the agent states its plan and proceeds instead
 of waiting for approval, iterating keep/discard experiments under the
 stopping rules. Pair it with `test_prop` to hold out rows the agent
@@ -144,8 +144,8 @@ res$test_leaderboard   # held-out performance, best first
 ```
 
 Long runs stay affordable: past a token budget (`compact_at`) the
-conversation is compacted — transcript archived to disk, context
-cleared, agent re-oriented from session state at no extra LLM cost — and
+conversation is compacted - transcript archived to disk, context
+cleared, agent re-oriented from session state at no extra LLM cost - and
 every results object reports the session’s total dollar `cost`. See
 [`vignette("autonomous")`](https://mattyoreilly.github.io/Atlas/articles/autonomous.md).
 
@@ -170,14 +170,14 @@ Runs land in `.atlas/<timestamp>` by default; set
 ## Limitations
 
 - **Columns are the scaling limit, not rows.** Fitting is local, so a
-  million rows just take the time they take — but the agent reasons
+  million rows just take the time they take - but the agent reasons
   about variables by name, and past a few dozen columns that reasoning
   degrades. Pre-select features for wide data.
 - **Cost scales with agent steps**, not data size: more candidates, more
   repair rounds, more follow-ups mean more LLM calls. `print(res)` shows
   what a session cost.
 - **The statistical stopping rules are agent-applied.** For guarantees,
-  use the mechanical budgets (`max_steps`, `max_runtime`) — those are
+  use the mechanical budgets (`max_steps`, `max_runtime`) - those are
   enforced by atlas, not the model.
 - **An agent is not a statistician.** atlas verifies what you tell it to
   verify; judgment about what the model is *for* stays with you. Read
@@ -185,12 +185,12 @@ Runs land in `.atlas/<timestamp>` by default; set
 
 ## Learn more
 
-- [`vignette("atlas")`](https://mattyoreilly.github.io/Atlas/articles/atlas.md)
-  — a full walkthrough: setup, the build lifecycle, what you get back,
+- [`vignette("atlas")`](https://mattyoreilly.github.io/Atlas/articles/atlas.md) -
+  a full walkthrough: setup, the build lifecycle, what you get back,
   what it costs
-- [`vignette("constraints")`](https://mattyoreilly.github.io/Atlas/articles/constraints.md)
-  — encoding domain knowledge that can’t be ignored
-- [`vignette("sessions")`](https://mattyoreilly.github.io/Atlas/articles/sessions.md)
-  — persistence, resuming, steering mid-build, and token stewardship
-- [`vignette("autonomous")`](https://mattyoreilly.github.io/Atlas/articles/autonomous.md)
-  — unattended runs with hard budgets and a protected test set
+- [`vignette("constraints")`](https://mattyoreilly.github.io/Atlas/articles/constraints.md) -
+  encoding domain knowledge that can’t be ignored
+- [`vignette("sessions")`](https://mattyoreilly.github.io/Atlas/articles/sessions.md) -
+  persistence, resuming, steering mid-build, and token stewardship
+- [`vignette("autonomous")`](https://mattyoreilly.github.io/Atlas/articles/autonomous.md) -
+  unattended runs with hard budgets and a protected test set
